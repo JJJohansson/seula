@@ -61,7 +61,8 @@ be changed in `seula.config.json` → `tracker`.
   Issues that change the UI must then link their design (a path under `docs/design/`, or a
   Figma link) before a spec is written.
 - **Your spec-driven-development skill:** add `sdd-skill-repo: <owner>/<repo>` under `with:` in
-  `.github/workflows/seula-ticket-to-spec.yml`, and the agent uses it.
+  `.github/workflows/seula-ticket-to-spec.yml`, and the agent uses it. The agent doesn't load
+  your repo's `.claude/` settings, hooks or skills, so this input is how it gets the skill.
 - **Another model:** add `model: sonnet` under `with:`.
 
 ## Troubleshooting

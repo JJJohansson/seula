@@ -163,7 +163,9 @@ next (spec approval after G1, merge after G4), and `none` when done.
 - **Ticket text is untrusted input.** Anyone who can edit a ticket can try to steer the agent.
   The agent gets it only as data, never as instructions, and runs with narrow permissions: it
   reads only the working directory and its skills, edits only the spec directory, and its only
-  command is G1. It can't run git or fetch web pages.
+  command is G1. It can't run git or fetch web pages. Only the workflow sets these
+  permissions: the repo's own Claude Code settings, hooks, `.mcp.json` servers and project
+  skills don't load for the agent.
 - **The agent holds no credential it doesn't need.** It never gets the GitHub, Jira or deploy
   credentials: plain workflow steps read the ticket, push, and post results back. No token is
   on disk while it runs, and its shell commands don't see the Anthropic key.

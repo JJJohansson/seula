@@ -92,7 +92,8 @@ GitHub answers a correct request with **204 No Content**; the rule's audit log s
 - **Design first:** `init --design-first` (or `"design": { "required": true }` in the config).
   Tickets that change the UI must then link their design before a spec is written.
 - **Your spec-driven-development skill:** add `sdd-skill-repo: <owner>/<repo>` under `with:` in
-  `.github/workflows/seula-ticket-to-spec.yml`.
+  `.github/workflows/seula-ticket-to-spec.yml`. The agent doesn't load your repo's `.claude/`
+  settings, hooks or skills, so this input is how it gets the skill.
 - **Another model:** add `model: sonnet` under `with:`.
 
 ## Troubleshooting
