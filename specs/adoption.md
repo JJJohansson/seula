@@ -10,7 +10,8 @@ none. It never overwrites the repo's own files.
 ## WHY / INTENT
 seula is an independent toolkit that a team takes into use when it needs it. Adoption must be
 one command and a few secrets, and must leave the repo in charge: the caller workflows are
-small enough to read in a minute, and updates come from seula by changing a pinned `ref`.
+small enough to read in a minute, and updates come from seula by changing a pinned `ref`. The
+repo decides which of its secrets seula gets.
 
 ## INPUTS / OUTPUTS
 - Inputs: `--tracker <jira|github>` (required), `--spec-dir <dir>`, `--design-first`,
@@ -27,7 +28,13 @@ small enough to read in a minute, and updates come from seula by changing a pinn
 3. It writes `.github/workflows/seula-ticket-to-spec.yml`: a caller workflow of at most 30
    lines that triggers on the tracker's event (Jira: `repository_dispatch` of type
    `seula-ticket`; GitHub: `issues` labeled `seula:ready-for-spec`) and calls seula's
-   `ticket-to-spec.yml` at the `--seula-ref` (default: the seula version running `init`).
+   `ticket-to-spec.yml` at the `--seula-ref` (default: the seula version running `init`). The
+   caller passes only the secrets that seula's workflow uses for that tracker, each by name, and
+   never `secrets: inherit`. GitHub: `ANTHROPIC_API_KEY`, `SEULA_GH_TOKEN`, `TYPESAFE_API_KEY`.
+   Jira: the same three plus `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`. seula's
+   `ANTHROPIC_API_KEY` comes from a repository secret named `SEULA_ANTHROPIC_API_KEY`, and its
+   `TYPESAFE_API_KEY` from `SEULA_TYPESAFE_API_KEY`, so seula never spends a key that the repo
+   keeps for its own app.
 4. It writes `.github/workflows/seula-spec-check.yml`, which calls seula's `spec-check.yml` on
    pull requests that change files in the spec directory.
 5. When the repo has no `SPEC_DRIVEN_DEVELOPMENT.md` and no `.seula/spec-template.md`, it writes
@@ -38,8 +45,10 @@ small enough to read in a minute, and updates come from seula by changing a pinn
    [`g0-ticket-gate.md`](g0-ticket-gate.md)).
 8. Running `init` a second time with the same options writes nothing new and reports every file
    as skipped.
-9. At the end, it prints the secrets to add, and the link to the setup guide for the chosen
-   tracker.
+9. At the end, it prints the repository secrets to add, by the names the caller reads
+   (`SEULA_ANTHROPIC_API_KEY`, `SEULA_GH_TOKEN`, optional `SEULA_TYPESAFE_API_KEY`, and for Jira
+   `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`), and the link to the setup guide for the
+   chosen tracker.
 10. `init` makes no network calls and never writes secrets.
 
 ## OUT OF SCOPE
@@ -47,6 +56,7 @@ small enough to read in a minute, and updates come from seula by changing a pinn
   the workflow creates missing labels).
 - Installing the Claude Code plugin locally.
 - Migrating an existing repo's specs to seula's format.
+- Updating a caller workflow that an earlier `init` wrote (rerun with `--force`).
 
 ## EDGE CASES
 - Not a git repo: `init` still writes the files, and warns that the workflows need GitHub.
