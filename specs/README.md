@@ -36,6 +36,8 @@ confirming by a person.
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.
+- [`commit-messages.md`](commit-messages.md): commitlint checks seula's own commit messages in
+  CI and in a local git hook.
 - G2 plan coverage, G3 criterion citations in tests, G4 review, G5 smoke check: described in
   [`../docs/quality-gates.md`](../docs/quality-gates.md); specs to be written before they are
   built.
