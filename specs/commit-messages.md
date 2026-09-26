@@ -1,6 +1,6 @@
 # FEATURE: Commit message check (commitlint)
 
-> **Status:** Idea
+> **Status:** Approved (26 Sep 2026), not yet built
 
 ## OVERVIEW
 seula's own repo checks that every commit message follows

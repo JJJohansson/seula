@@ -33,11 +33,11 @@ confirming by a person.
 - [`adoption.md`](adoption.md): `seula init`, which sets seula up in any repo.
 - [`design-first.md`](design-first.md): optional setting that requires a linked design before a
   UI ticket gets a spec.
+- [`commit-messages.md`](commit-messages.md): commitlint checks seula's own commit messages in
+  CI and in a local git hook. Not yet built.
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.
-- [`commit-messages.md`](commit-messages.md): commitlint checks seula's own commit messages in
-  CI and in a local git hook.
 - G2 plan coverage, G3 criterion citations in tests, G4 review, G5 smoke check: described in
   [`../docs/quality-gates.md`](../docs/quality-gates.md); specs to be written before they are
   built.
