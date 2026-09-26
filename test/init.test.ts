@@ -13,6 +13,8 @@ function repo(opts: { git?: boolean; dirs?: string[]; files?: Record<string, str
   return d;
 }
 const read = (d: string, f: string) => readFileSync(join(d, f), "utf8");
+// A Windows checkout may have CRLF line endings.
+const lf = (text: string) => text.replaceAll("\r\n", "\n");
 
 test("adoption criteria 1-5: a fresh repo gets a config, two caller workflows and a template", () => {
   const d = repo();
@@ -51,6 +53,46 @@ test("adoption criteria 2-3: Jira callers, and docs/specs is detected", () => {
   assert.match(read(d, ".github/workflows/seula-spec-check.yml"), /docs\/specs\/\*\*/);
 });
 
+/** The `secrets:` names that seula's reusable ticket-to-spec workflow declares. */
+function declaredSecrets(): string[] {
+  const wf = lf(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "ticket-to-spec.yml"), "utf8"));
+  const block = /^ {4}secrets:\n((?: {6}.*\n)+)/m.exec(wf)?.[1] ?? "";
+  return [...block.matchAll(/^ {6}(\w+):$/gm)].map((m) => m[1] as string);
+}
+
+/** The caller's `secrets:` block as { name seula's workflow gets: repository secret it reads }. */
+function passedSecrets(caller: string): Record<string, string> {
+  const block = /^ {4}secrets:\n((?: {6}.*\n?)+)/m.exec(lf(caller))?.[1] ?? "";
+  return Object.fromEntries([...block.matchAll(/^ {6}(\w+): \$\{\{ secrets\.(\w+) \}\}$/gm)].map((m) => [m[1], m[2]]));
+}
+
+for (const [tracker, expected] of [
+  ["github", { ANTHROPIC_API_KEY: "SEULA_ANTHROPIC_API_KEY", SEULA_GH_TOKEN: "SEULA_GH_TOKEN", TYPESAFE_API_KEY: "SEULA_TYPESAFE_API_KEY" }],
+  [
+    "jira",
+    {
+      ANTHROPIC_API_KEY: "SEULA_ANTHROPIC_API_KEY",
+      SEULA_GH_TOKEN: "SEULA_GH_TOKEN",
+      TYPESAFE_API_KEY: "SEULA_TYPESAFE_API_KEY",
+      JIRA_BASE_URL: "JIRA_BASE_URL",
+      JIRA_EMAIL: "JIRA_EMAIL",
+      JIRA_API_TOKEN: "JIRA_API_TOKEN",
+    },
+  ],
+] as const) {
+  test(`adoption criterion 3: the ${tracker} caller passes only seula's secrets, by name, never inherit`, () => {
+    const d = repo();
+    init({ cwd: d, tracker });
+    const caller = read(d, ".github/workflows/seula-ticket-to-spec.yml");
+    assert.ok(caller.split("\n").length <= 31, "at most 30 lines");
+    assert.doesNotMatch(caller, /^\s*secrets:\s*inherit/m);
+    const passed = passedSecrets(caller);
+    assert.deepEqual(passed, expected);
+    const declared = declaredSecrets();
+    for (const name of Object.keys(passed)) assert.ok(declared.includes(name), `seula's workflow declares ${name}`);
+  });
+}
+
 test("adoption criterion 5: a repo with SPEC_DRIVEN_DEVELOPMENT.md gets no template", () => {
   const d = repo({ files: { "SPEC_DRIVEN_DEVELOPMENT.md": "# config" } });
   const r = init({ cwd: d, tracker: "github" });
@@ -88,12 +130,22 @@ test("adoption criterion 7: --design-first turns the setting on", () => {
   assert.deepEqual(JSON.parse(read(d, "seula.config.json")).design, { required: true });
 });
 
-test("adoption criteria 9-10: next steps list the secrets; nothing secret is written", () => {
+test("adoption criteria 9-10: next steps list the secrets the caller reads; nothing secret is written", () => {
   const d = repo();
   const r = init({ cwd: d, tracker: "jira" });
-  assert.match(r.nextSteps[0] ?? "", /ANTHROPIC_API_KEY, SEULA_GH_TOKEN, TYPESAFE_API_KEY .*JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN/);
+  assert.match(r.nextSteps[0] ?? "", /: SEULA_ANTHROPIC_API_KEY, SEULA_GH_TOKEN, SEULA_TYPESAFE_API_KEY .*JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN\.$/);
   assert.match(r.nextSteps[1] ?? "", /docs\/setup-jira\.md/);
   for (const f of r.files) assert.doesNotMatch(read(d, f.path), /api[_-]?key"?\s*[:=]\s*"?\w{8,}/i);
+});
+
+test("adoption criterion 9: every secret the caller reads is in the next steps, and no other", () => {
+  for (const tracker of ["github", "jira"] as const) {
+    const d = repo();
+    const r = init({ cwd: d, tracker });
+    const listed = [...(r.nextSteps[0] ?? "").matchAll(/\b[A-Z][A-Z_]+[A-Z]\b/g)].map((m) => m[0]);
+    const reads = Object.values(passedSecrets(read(d, ".github/workflows/seula-ticket-to-spec.yml")));
+    assert.deepEqual(listed.sort(), reads.sort(), tracker);
+  }
 });
 
 test("adoption edge case: outside a git repo it still writes, with a warning", () => {

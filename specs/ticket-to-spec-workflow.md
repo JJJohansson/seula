@@ -18,7 +18,8 @@ approving it and merging stay with a person.
 - Inputs (`workflow_call`): `tracker` (`jira` | `github`), `seula-ref` (default `main`), `model`
   (default `opus`), `base-branch` (default `main`). Secrets: `ANTHROPIC_API_KEY`,
   `SEULA_GH_TOKEN`, optional `TYPESAFE_API_KEY`, and for Jira `JIRA_BASE_URL`, `JIRA_EMAIL`,
-  `JIRA_API_TOKEN`.
+  `JIRA_API_TOKEN`. The caller maps the repo's secrets onto these names (see
+  [`adoption.md`](adoption.md), criterion 3).
 - Outputs: a branch `seula/<run id>-<spec name>` with the spec change, the ticket file and the
   run file; a pull request; a comment and a state change on the ticket.
 

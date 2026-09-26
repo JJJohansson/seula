@@ -17,4 +17,8 @@ jobs:
     with:
       tracker: github
       seula-ref: {{REF}}
-    secrets: inherit
+    # Only the secrets seula uses, never `inherit`. seula's keys have their own names.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.SEULA_ANTHROPIC_API_KEY }}
+      SEULA_GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+      TYPESAFE_API_KEY: ${{ secrets.SEULA_TYPESAFE_API_KEY }}
