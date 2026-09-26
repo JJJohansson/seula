@@ -42,8 +42,7 @@ work with gates, so its own supply chain must be checked by gates too.
    run files, or the text that it posts on a pull request or a ticket.
 9. The CLI connects only to the Jev endpoint in the config and to the tracker named by its
    environment (`JIRA_BASE_URL`, or `GITHUB_API_URL`, default `https://api.github.com`).
-   `init`, `check-spec`, `status`, `config`
-   and `prompt` make no network calls.
+   `init`, `check-spec`, `status`, `config` and `prompt` make no network calls.
 10. When the repo is public, GitHub secret scanning and push protection are on.
 11. The THREAT MODEL below names each asset, each threat and the criteria that defend against
     it, and each accepted risk. `docs/quality-gates.md` links to it from its security notes.
