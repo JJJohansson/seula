@@ -5,10 +5,12 @@ name: seula · ticket to spec (reusable)
 # Claude write or update the spec with G1 in its loop, opens a pull request, and reports back on
 # the ticket.
 #
-# Security (criteria 5-6): no ticket field appears in a run: script. The ticket reaches the gates
-# and the agent only as a file written by `seula tracker ticket`. The agent can edit only the
-# spec directory, can't run git or fetch web pages, and its only command is the seula CLI.
-# Plain steps do the git and tracker work, and each secret is given only to the steps that use it.
+# Security (criteria 5-6, 13): no ticket field appears in a run: script. The ticket reaches the
+# gates and the agent only as a file written by `seula tracker ticket`. The agent reads only the
+# working directory and its skills, edits only the spec directory, can't run git or fetch web
+# pages, and its only command is G1; its shell commands don't get credentials. No credential is
+# on disk while it runs. Plain steps do the git and tracker work, each secret is given only to
+# the steps that use it, and a secret found in the agent's output stops the run.
 on:
   workflow_call:
     inputs:
@@ -77,6 +79,9 @@ jobs:
           # (pushes made with the default GITHUB_TOKEN don't start other workflows).
           token: ${{ secrets.SEULA_GH_TOKEN }}
           fetch-depth: 0
+          # Criterion 6: no credential on disk while the agent runs. The pull request step
+          # gives the token to its own git commands.
+          persist-credentials: false
 
       - name: Check out seula
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -146,6 +151,8 @@ jobs:
         if: steps.g0.outputs.code == '0'
         run: |
           npm install -g @anthropic-ai/claude-code
+          claude --version
+          mkdir -p "$HOME/.claude/skills"
           if [ -n "$SDD_SKILL_REPO" ]; then
             git clone --depth 1 "https://github.com/$SDD_SKILL_REPO" "$HOME/.claude/skills/spec-driven-development"
           fi
@@ -156,16 +163,24 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          # Criterion 5: the agent's shell commands don't get the Anthropic key or other
+          # credentials, and can't read them from /proc.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         run: |
           prompt="$($SEULA prompt spec-writer --run "$RUN_ID" --ticket "$TICKET_FILE" --seula-cmd "$SEULA")"
           schema='{"type":"object","properties":{"spec_path":{"type":"string"},"status":{"type":"string","enum":["ready","needs_input","blocked"]},"questions":{"type":"array","items":{"type":"string"}},"summary":{"type":"string"}},"required":["spec_path","status","questions","summary"]}'
+          # Criterion 5: reads (file tools and commands such as cat) stay in the working
+          # directory and the installed skills. Edit rules also cover Write. The only
+          # command is G1.
           set +e
           claude -p "$prompt" \
             --model "$SEULA_MODEL" \
             --max-turns 40 \
             --permission-mode dontAsk \
+            --settings '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}' \
+            --add-dir "$HOME/.claude/skills" \
             --plugin-dir .seula-tool \
-            --allowedTools "Read,Glob,Grep,Skill,Task,Agent,Edit($SPEC_DIR/**),Write($SPEC_DIR/**),Bash($SEULA *)" \
+            --allowedTools "Skill,Task,Agent,Edit($SPEC_DIR/**),Bash($SEULA gate g1 *)" \
             --disallowedTools "WebFetch,WebSearch,Bash(git *)" \
             --output-format json \
             --json-schema "$schema" > claude.json
@@ -177,6 +192,7 @@ jobs:
         if: steps.g0.outputs.code == '0'
         env:
           CLAUDE_EXIT: ${{ steps.claude.outputs.code }}
+          HAS_JEV: ${{ secrets.TYPESAFE_API_KEY != '' }}
         run: |
           cost="$(jq -r '.total_cost_usd // 0' claude.json 2>/dev/null || echo 0)"
           $SEULA update --run "$RUN_ID" --claude-usd "$cost" || echo "::warning::Cost not stored"
@@ -193,9 +209,13 @@ jobs:
             spec=""
             status=blocked
           fi
-          # Trust the gate record, not the agent's own report.
+          # Trust the gate record, not the agent's own report. A skipped G1 counts only when no
+          # Jev key is configured (criterion 8), so a lost key can't pass silently.
           g1="$(jq -r '[.events[] | select(.gate == "G1")] | last | .result // "none"' "$RUN_FILE")"
-          if [ "$status" = "ready" ] && [ "$g1" != "pass" ] && [ "$g1" != "skipped" ]; then
+          g1_ok=false
+          if [ "$g1" = "pass" ]; then g1_ok=true; fi
+          if [ "$g1" = "skipped" ] && [ "$HAS_JEV" != "true" ]; then g1_ok=true; fi
+          if [ "$status" = "ready" ] && [ "$g1_ok" != "true" ]; then
             echo "::warning::The agent reported ready, but the last G1 result is '$g1'."
             status=needs_input
           fi
@@ -204,6 +224,29 @@ jobs:
             echo "status=$status"
             echo "g1=$g1"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Check the agent's output for secrets (criterion 13)
+        if: steps.g0.outputs.code == '0'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          SEULA_GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          # Everything that later steps commit or post: the spec directory, the run file and
+          # the agent's output. The check names a leaked secret but never prints its value.
+          files=("$SPEC_DIR" "$RUN_FILE")
+          if [ -f claude.json ]; then files+=(claude.json); fi
+          leaked=0
+          for name in ANTHROPIC_API_KEY TYPESAFE_API_KEY SEULA_GH_TOKEN JIRA_API_TOKEN; do
+            value="${!name:-}"
+            if [ -z "$value" ]; then continue; fi
+            if grep -rqF -- "$value" "${files[@]}" 2>/dev/null; then
+              echo "::error::The value of $name appears in the agent's output. Nothing is committed or posted."
+              leaked=1
+            fi
+          done
+          exit "$leaked"
 
       - name: Commit and open the pull request (criterion 7)
         id: pr
@@ -221,8 +264,12 @@ jobs:
           git checkout -b "$branch"
           git add "$SPEC_DIR" "$RUN_FILE" "$TICKET_FILE"
           git commit -m "spec($RUN_ID): $title" -m "Drafted by Claude from the ticket; checked by seula G0 and G1."
+          # Criterion 6: the token reaches only this step's git commands, not the git config.
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git_auth() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           # The branch belongs to this workflow; a re-run regenerates it.
-          git push --force -u origin "$branch"
+          git_auth push --force -u origin "$branch"
 
           ticket_link="$(jq -r '.links.ticket // ""' "$RUN_FILE")"
           {
@@ -263,7 +310,7 @@ jobs:
           $SEULA update --run "$RUN_ID" --pr-url "$url"
           git add "$RUN_FILE"
           git commit -m "seula: link $RUN_ID to its pull request"
-          git push
+          git_auth push
 
       - name: Report on the ticket (criterion 9)
         if: steps.g0.outputs.code == '0'

@@ -162,8 +162,14 @@ next (spec approval after G1, merge after G4), and `none` when done.
 
 - **Ticket text is untrusted input.** Anyone who can edit a ticket can try to steer the agent.
   The agent gets it only as data, never as instructions, and runs with narrow permissions: it
-  can push only to its own branch.
-- **The agent never holds the Jira or deploy credentials.** Plain workflow steps read the
-  ticket and post results back.
+  reads only the working directory and its skills, edits only the spec directory, and its only
+  command is G1. It can't run git or fetch web pages.
+- **The agent holds no credential it doesn't need.** It never gets the GitHub, Jira or deploy
+  credentials: plain workflow steps read the ticket, push, and post results back. No token is
+  on disk while it runs, and its shell commands don't see the Anthropic key.
+- **What the agent writes is checked before it leaves the runner.** The spec, the run file
+  and the agent's output are published (committed, or posted on the pull request and the
+  ticket). Before that, the workflow looks for the value of each secret it holds and stops the
+  run when it finds one.
 - **A classifier is not a security boundary.** A Jev check for injected instructions is a
   useful extra signal; permissions are the protection.

@@ -32,15 +32,18 @@ approving it and merging stay with a person.
 4. When G0 passes or is skipped, Claude writes or updates one spec in the repo's configured
    spec directory with the spec-writer prompt and the seula plugin, and runs G1 until G1 passes,
    is unsure, or reaches the loop limit.
-5. The agent can edit only files in the spec directory, can't run git or fetch web pages, and
-   the only shell command it can run is the seula CLI.
+5. The agent can edit only files in the spec directory and read only files in the working
+   directory and its installed skills. It can't run git or fetch web pages. Its only shell
+   command is seula's G1 gate, and its shell commands can't see the Anthropic key.
 6. No ticket field appears in a `run:` script: ticket text reaches the gates and the agent only
-   as a file. Each secret is given only to the steps that use it.
+   as a file. Each secret is given only to the steps that use it. No credential is stored on
+   disk while the agent runs.
 7. The workflow commits the spec, the ticket file and the run file to the branch, and opens a
    pull request (or updates the existing one) that links the ticket, lists every gate result and
    its feedback, and states which checks ran.
-8. The pull request opens ready for review only when the run file's last G1 result is pass or
-   skipped, whatever the agent reports; otherwise it opens as a draft.
+8. The pull request opens ready for review only when the run file's last G1 result is pass, or
+   skipped because no Jev key is configured, whatever the agent reports; otherwise it opens as
+   a draft.
 9. After the pull request opens, the workflow posts its link on the ticket and sets the ticket
    to `specReview` when ready, or to `needsInput` with the agent's open questions when not.
 10. The workflow never sets a spec to a buildable status; a new spec gets the first
@@ -49,6 +52,8 @@ approving it and merging stay with a person.
 12. `spec-check.yml` runs on `workflow_call`, finds the spec files that the pull request adds
     or changes, and runs `seula check-spec` on them, skipping the config's `ignore` list. The
     check fails when a spec has a format error.
+13. Before it commits or posts anything, the workflow checks the files and the agent's output
+    for the value of each secret it holds, and stops the run when it finds one.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -72,3 +77,8 @@ approving it and merging stay with a person.
    `SPEC_DRIVEN_DEVELOPMENT.md` when present, else use the template named in the config.
 4. Validate: YAML parses; every shell step passes `bash -n`; no `${{ }}` inside `run:`; then one
    real run on a test repo per tracker.
+5. Criteria 5, 6, 8 and 13 (tightened 26 Sep 2026): `test/workflows.test.ts` checks the workflow
+   file, and runs the secret check with bash. The first real run must also show that the G1
+   events in the run file have Jev results, not `skipped`: the subprocess scrub must leave
+   `TYPESAFE_API_KEY` to the G1 command. If it doesn't, criterion 8 opens a draft, not a ready
+   pull request.
