@@ -1,0 +1,3 @@
+# Check out text files with LF on every platform. Templates that `seula init` copies,
+# shell scripts and the workflow files must stay LF.
+* text=auto eol=lf
