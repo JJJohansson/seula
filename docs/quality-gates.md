@@ -167,6 +167,11 @@ next (spec approval after G1, merge after G4), and `none` when done.
 - **The agent holds no credential it doesn't need.** It never gets the GitHub, Jira or deploy
   credentials: plain workflow steps read the ticket, push, and post results back. No token is
   on disk while it runs, and its shell commands don't see the Anthropic key.
+- **The adopting repo gives seula only the secrets it uses.** The caller workflow that
+  `seula init` writes passes each secret by name, never `secrets: inherit`, so a seula ref
+  never sees the repo's other secrets. seula's Anthropic and Jev keys come from
+  `SEULA_ANTHROPIC_API_KEY` and `SEULA_TYPESAFE_API_KEY`, so seula never spends a key that
+  the repo keeps for its own app.
 - **What the agent writes is checked before it leaves the runner.** The spec, the run file
   and the agent's output are published (committed, or posted on the pull request and the
   ticket). Before that, the workflow looks for the value of each secret it holds and stops the

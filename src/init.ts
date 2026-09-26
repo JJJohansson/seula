@@ -96,7 +96,8 @@ export function init(opts: InitOptions): InitResult {
     result.files.push({ path: f.path, action: exists ? "overwritten" : "written" });
   }
 
-  const secrets = ["ANTHROPIC_API_KEY", "SEULA_GH_TOKEN", "TYPESAFE_API_KEY (optional: without it the Jev checks are skipped)"];
+  // adoption criterion 9: the names the caller workflow reads, not the names seula's workflow declares.
+  const secrets = ["SEULA_ANTHROPIC_API_KEY", "SEULA_GH_TOKEN", "SEULA_TYPESAFE_API_KEY (optional: without it the Jev checks are skipped)"];
   if (opts.tracker === "jira") secrets.push("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN");
   result.nextSteps = [
     `Add these repository secrets (Settings → Secrets and variables → Actions): ${secrets.join(", ")}.`,

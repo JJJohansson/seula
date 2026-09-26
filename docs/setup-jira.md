@@ -42,12 +42,16 @@ In the repo: **Settings → Secrets and variables → Actions → New repository
 
 | Secret | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key (platform.claude.com) |
+| `SEULA_ANTHROPIC_API_KEY` | Anthropic API key for seula (platform.claude.com) |
 | `SEULA_GH_TOKEN` | the seula bot token |
-| `TYPESAFE_API_KEY` | Jev API key (optional: without it the Jev checks are skipped) |
+| `SEULA_TYPESAFE_API_KEY` | Jev API key (optional: without it the Jev checks are skipped) |
 | `JIRA_BASE_URL` | `https://<your-site>.atlassian.net` |
 | `JIRA_EMAIL` | the email of the Atlassian account that owns the Jira API token |
 | `JIRA_API_TOKEN` | the Jira API token |
+
+The caller workflow gives seula only these secrets, each by name, and never your other
+secrets. The two API keys have `SEULA_` names, so seula doesn't spend an `ANTHROPIC_API_KEY`
+or `TYPESAFE_API_KEY` that your app already uses.
 
 ## 5. Jira automation rule
 
@@ -103,5 +107,6 @@ GitHub answers a correct request with **204 No Content**; the rule's audit log s
 | 204, but no workflow run | The caller workflow isn't on the default branch, or `event_type` isn't `seula-ticket` |
 | "Check out the repo" fails | `SEULA_GH_TOKEN` is missing or expired |
 | "Check out seula" fails | The seula repo isn't reachable: make it public, or allow access to it in its Actions settings |
+| "Write the spec" fails to authenticate | `SEULA_ANTHROPIC_API_KEY` is missing or wrong (seula doesn't read a secret named `ANTHROPIC_API_KEY`) |
 | A comment appears, but the ticket doesn't move | No transition to that status from the current one, or the status names differ (`tracker.states`) |
 | The pull request has no CI checks | The branch was pushed with `GITHUB_TOKEN` instead of `SEULA_GH_TOKEN` |

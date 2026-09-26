@@ -16,4 +16,11 @@ jobs:
     with:
       tracker: jira
       seula-ref: {{REF}}
-    secrets: inherit
+    # Only the secrets seula uses, never `inherit`. seula's keys have their own names.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.SEULA_ANTHROPIC_API_KEY }}
+      SEULA_GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+      TYPESAFE_API_KEY: ${{ secrets.SEULA_TYPESAFE_API_KEY }}
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
