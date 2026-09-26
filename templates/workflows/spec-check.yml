@@ -1,0 +1,16 @@
+# seula: check the format of every spec a pull request adds or changes (G1 format rules).
+name: seula · spec check
+
+on:
+  pull_request:
+    paths:
+      - "{{SPEC_DIR}}/**"
+
+permissions:
+  contents: read
+
+jobs:
+  seula:
+    uses: JJJohansson/seula/.github/workflows/spec-check.yml@{{REF}}
+    with:
+      seula-ref: {{REF}}

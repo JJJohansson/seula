@@ -1,0 +1,51 @@
+{
+  "specDir": "specs",
+  "ignore": [
+    "specs/README.md"
+  ],
+  "statuses": [
+    "Shipped",
+    "Active",
+    "Approved",
+    "Idea",
+    "Superseded"
+  ],
+  "buildableStatuses": [
+    "Shipped",
+    "Active",
+    "Approved"
+  ],
+  "requiredSections": [
+    "OVERVIEW",
+    "ACCEPTANCE CRITERIA",
+    "OUT OF SCOPE",
+    "EDGE CASES"
+  ],
+  "criteriaSection": "ACCEPTANCE CRITERIA",
+  "runsDir": ".seula/runs",
+  "ticketsDir": ".seula/tickets",
+  "maxBacks": 2,
+  "tracker": {
+    "type": "github",
+    "states": {
+      "needsInput": "seula:needs-input",
+      "specReview": "seula:spec-review"
+    },
+    "triggerLabel": "seula:ready-for-spec"
+  },
+  "design": {
+    "required": false,
+    "linkPatterns": [
+      "docs/design/",
+      "figma.com/"
+    ]
+  },
+  "jev": {
+    "model": "jev-latest",
+    "thresholds": {
+      "passAt": 0.75,
+      "blockBelow": 0.25
+    },
+    "questionThresholds": {}
+  }
+}

@@ -1,0 +1,19 @@
+# seula: turn a Jira ticket into a spec pull request.
+# A Jira automation rule sends the repository_dispatch event when a ticket moves to
+# "Ready for spec". Setup: https://github.com/JJJohansson/seula/blob/main/docs/setup-jira.md
+name: seula · ticket to spec
+
+on:
+  repository_dispatch:
+    types: [seula-ticket]
+
+permissions:
+  contents: read
+
+jobs:
+  seula:
+    uses: JJJohansson/seula/.github/workflows/ticket-to-spec.yml@{{REF}}
+    with:
+      tracker: jira
+      seula-ref: {{REF}}
+    secrets: inherit

@@ -1,0 +1,59 @@
+{
+  "examples": [
+    {
+      "id": "csv-filename",
+      "context": {
+        "feature": "FEATURE: Export shopping list as CSV",
+        "overview": "Let the user download the current week's shopping list as a CSV file."
+      },
+      "criterion": "Clicking Export downloads a file named shopping-list-<monday's date>.csv, with the date in YYYY-MM-DD form.",
+      "expect": { "testable": true, "unambiguous": true, "behavior": true, "inScope": true }
+    },
+    {
+      "id": "csv-fast",
+      "context": {
+        "feature": "FEATURE: Export shopping list as CSV",
+        "overview": "Let the user download the current week's shopping list as a CSV file."
+      },
+      "criterion": "Exporting feels fast.",
+      "expect": { "testable": false, "unambiguous": false }
+    },
+    {
+      "id": "csv-papaparse",
+      "context": {
+        "feature": "FEATURE: Export shopping list as CSV",
+        "overview": "Let the user download the current week's shopping list as a CSV file."
+      },
+      "criterion": "The export uses the PapaParse library's unparse() function with a custom row mapper class.",
+      "expect": { "behavior": false }
+    },
+    {
+      "id": "csv-email",
+      "context": {
+        "feature": "FEATURE: Export shopping list as CSV",
+        "overview": "Let the user download the current week's shopping list as a CSV file.",
+        "outOfScope": "- Sending the list anywhere (email, messaging)."
+      },
+      "criterion": "The user can email the CSV to a friend from the export dialog.",
+      "expect": { "inScope": false }
+    },
+    {
+      "id": "reminder-time",
+      "context": {
+        "feature": "FEATURE: Cooking reminders",
+        "overview": "Remind the user to start cooking a planned dinner."
+      },
+      "criterion": "A reminder notification appears 60 minutes before the dinner's planned start time.",
+      "expect": { "testable": true, "unambiguous": true, "behavior": true, "inScope": true }
+    },
+    {
+      "id": "reminder-sensible",
+      "context": {
+        "feature": "FEATURE: Cooking reminders",
+        "overview": "Remind the user to start cooking a planned dinner."
+      },
+      "criterion": "Reminders are shown at a sensible time.",
+      "expect": { "testable": false, "unambiguous": false }
+    }
+  ]
+}

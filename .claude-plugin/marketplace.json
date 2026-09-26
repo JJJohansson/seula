@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "seula",
+  "owner": {
+    "name": "JJJohansson",
+    "url": "https://github.com/JJJohansson"
+  },
+  "description": "Install seula as a Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "seula",
+      "source": "./",
+      "description": "Spec-driven quality gates for AI coding agents: a skill that runs the gates, and an independent reviewer agent.",
+      "keywords": ["spec-driven-development", "quality-gates", "jev", "code-review", "ci"]
+    }
+  ]
+}

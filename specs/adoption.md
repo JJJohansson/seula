@@ -1,0 +1,61 @@
+# FEATURE: Adopting seula in a repo (`seula init`)
+
+> **Status:** Approved (26 Sep 2026)
+
+## OVERVIEW
+`npx github:JJJohansson/seula init` sets seula up in any repo: a config file, two short
+caller workflows that use seula's reusable workflows, and a spec template when the repo has
+none. It never overwrites the repo's own files.
+
+## WHY / INTENT
+seula is an independent toolkit that a team takes into use when it needs it. Adoption must be
+one command and a few secrets, and must leave the repo in charge: the caller workflows are
+small enough to read in a minute, and updates come from seula by changing a pinned `ref`.
+
+## INPUTS / OUTPUTS
+- Inputs: `--tracker <jira|github>` (required), `--spec-dir <dir>`, `--design-first`,
+  `--seula-ref <ref>`, `--force`.
+- Outputs: `seula.config.json`; `.github/workflows/seula-ticket-to-spec.yml`;
+  `.github/workflows/seula-spec-check.yml`; `.seula/spec-template.md` when needed; a list of
+  next steps.
+
+## ACCEPTANCE CRITERIA
+1. `seula init --tracker <jira|github>` writes `seula.config.json` with the tracker type, the
+   spec directory, and the default states for that tracker.
+2. Without `--spec-dir`, the spec directory is `specs/` if it exists, else `docs/specs/` if it
+   exists, else `specs/`.
+3. It writes `.github/workflows/seula-ticket-to-spec.yml`: a caller workflow of at most 30
+   lines that triggers on the tracker's event (Jira: `repository_dispatch` of type
+   `seula-ticket`; GitHub: `issues` labeled `seula:ready-for-spec`) and calls seula's
+   `ticket-to-spec.yml` at the `--seula-ref` (default: the seula version running `init`).
+4. It writes `.github/workflows/seula-spec-check.yml`, which calls seula's `spec-check.yml` on
+   pull requests that change files in the spec directory.
+5. When the repo has no `SPEC_DRIVEN_DEVELOPMENT.md` and no `.seula/spec-template.md`, it writes
+   `.seula/spec-template.md` from seula's template and sets `template` in the config to it.
+6. It never overwrites an existing file unless `--force` is given. It lists each file as
+   written or skipped, and exits 0.
+7. `--design-first` sets `design.required` to `true` in the config (see
+   [`g0-ticket-gate.md`](g0-ticket-gate.md)).
+8. Running `init` a second time with the same options writes nothing new and reports every file
+   as skipped.
+9. At the end, it prints the secrets to add, and the link to the setup guide for the chosen
+   tracker.
+10. `init` makes no network calls and never writes secrets.
+
+## OUT OF SCOPE
+- Creating GitHub secrets, Jira automation rules or GitHub labels (the setup guides cover them;
+  the workflow creates missing labels).
+- Installing the Claude Code plugin locally.
+- Migrating an existing repo's specs to seula's format.
+
+## EDGE CASES
+- Not a git repo: `init` still writes the files, and warns that the workflows need GitHub.
+- `seula.config.json` exists but has no `tracker`: skipped without `--force`; the output says
+  which setting is missing.
+
+## PLAN
+1. `src/init.ts`: file plan (path, content, reason), write-if-absent, report.
+2. Caller workflow templates for each tracker in `templates/`.
+3. `docs/setup-jira.md` and `docs/setup-github-issues.md` (split from the current setup guide).
+4. Tests in a temporary directory: fresh repo, repo with `docs/specs/`, second run, `--force`,
+   `--design-first`.

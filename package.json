@@ -1,0 +1,33 @@
+{
+  "name": "seula",
+  "version": "0.1.0",
+  "description": "Spec-driven quality gates for AI coding agents.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "seula": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "prompts",
+    "skills",
+    "agents",
+    ".claude-plugin",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "seula": "node src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.3"
+  }
+}

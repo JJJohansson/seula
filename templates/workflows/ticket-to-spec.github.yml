@@ -1,0 +1,20 @@
+# seula: turn a GitHub issue into a spec pull request.
+# Add the "{{TRIGGER_LABEL}}" label to an issue to start.
+# Setup: https://github.com/JJJohansson/seula/blob/main/docs/setup-github-issues.md
+name: seula · ticket to spec
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  seula:
+    if: github.event.label.name == '{{TRIGGER_LABEL}}'
+    uses: JJJohansson/seula/.github/workflows/ticket-to-spec.yml@{{REF}}
+    with:
+      tracker: github
+      seula-ref: {{REF}}
+    secrets: inherit

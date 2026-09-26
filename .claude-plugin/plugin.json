@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "seula",
+  "description": "Spec-driven quality gates for AI coding agents: a skill that runs the gates between the steps, and an independent reviewer agent.",
+  "version": "0.1.0",
+  "author": {
+    "name": "JJJohansson",
+    "url": "https://github.com/JJJohansson"
+  },
+  "homepage": "https://github.com/JJJohansson/seula",
+  "repository": "https://github.com/JJJohansson/seula",
+  "keywords": ["spec-driven-development", "quality-gates", "jev", "code-review", "ci"]
+}

@@ -1,0 +1,306 @@
+name: seula · ticket to spec (reusable)
+
+# specs/ticket-to-spec-workflow.md. Called from an adopting repo's short caller workflow
+# (written by `seula init`). Reads the ticket from the triggering event, checks it (G0), lets
+# Claude write or update the spec with G1 in its loop, opens a pull request, and reports back on
+# the ticket.
+#
+# Security (criteria 5-6): no ticket field appears in a run: script. The ticket reaches the gates
+# and the agent only as a file written by `seula tracker ticket`. The agent can edit only the
+# spec directory, can't run git or fetch web pages, and its only command is the seula CLI.
+# Plain steps do the git and tracker work, and each secret is given only to the steps that use it.
+on:
+  workflow_call:
+    inputs:
+      tracker:
+        description: "jira or github"
+        type: string
+        required: true
+      seula-ref:
+        description: "The seula version (tag, branch or commit) to run"
+        type: string
+        default: main
+      model:
+        description: "Claude model for the spec writer"
+        type: string
+        default: opus
+      base-branch:
+        description: "Branch the pull request targets"
+        type: string
+        default: main
+      sdd-skill-repo:
+        description: "Optional owner/repo of a spec-driven-development skill to install for the agent"
+        type: string
+        default: ""
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+      SEULA_GH_TOKEN:
+        required: true
+      TYPESAFE_API_KEY:
+        required: false
+      JIRA_BASE_URL:
+        required: false
+      JIRA_EMAIL:
+        required: false
+      JIRA_API_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  spec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: seula-${{ github.repository }}-${{ github.event.issue.number || github.event.client_payload.key }}
+      cancel-in-progress: false
+    env:
+      SEULA: node .seula-tool/src/cli.ts
+      SEULA_TRACKER: ${{ inputs.tracker }}
+      SEULA_MODEL: ${{ inputs.model }}
+      BASE_BRANCH: ${{ inputs.base-branch }}
+      SDD_SKILL_REPO: ${{ inputs.sdd-skill-repo }}
+    steps:
+      - name: Check the inputs
+        run: |
+          case "$SEULA_TRACKER" in jira|github) ;; *) echo "::error::tracker must be jira or github"; exit 1 ;; esac
+          [[ "$SEULA_MODEL" =~ ^[a-z0-9.-]+$ ]] || { echo "::error::Invalid model"; exit 1; }
+          [[ "$BASE_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "::error::Invalid base branch"; exit 1; }
+          [[ -z "$SDD_SKILL_REPO" || "$SDD_SKILL_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Invalid sdd-skill-repo"; exit 1; }
+
+      - name: Check out the repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          # A personal token, so the branch and pull request made below trigger CI
+          # (pushes made with the default GITHUB_TOKEN don't start other workflows).
+          token: ${{ secrets.SEULA_GH_TOKEN }}
+          fetch-depth: 0
+
+      - name: Check out seula
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          repository: JJJohansson/seula
+          ref: ${{ inputs.seula-ref }}
+          path: .seula-tool
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+
+      - name: Read the ticket (criterion 2)
+        run: |
+          echo ".seula-tool/" >> .git/info/exclude
+          $SEULA tracker ticket --tracker "$SEULA_TRACKER" --event "$GITHUB_EVENT_PATH" --out .seula/pending-ticket.md > ticket.json
+          run_id="$(jq -r .runId ticket.json)"
+          key="$(jq -r .key ticket.json)"
+          [[ "$run_id" =~ ^[A-Za-z0-9._-]+$ && "$key" =~ ^[A-Za-z0-9-]+$ ]] || { echo "::error::Invalid ticket id"; exit 1; }
+          tickets_dir="$($SEULA config | jq -r .ticketsDir)"
+          runs_dir="$($SEULA config | jq -r .runsDir)"
+          spec_dir="$($SEULA config | jq -r .specDir)"
+          for dir in "$tickets_dir" "$runs_dir" "$spec_dir"; do
+            [[ "$dir" =~ ^[A-Za-z0-9._/-]+$ && "$dir" != *..* ]] || { echo "::error::Invalid directory in seula.config.json: $dir"; exit 1; }
+          done
+          mkdir -p "$tickets_dir"
+          mv .seula/pending-ticket.md "$tickets_dir/$run_id.md"
+          {
+            echo "RUN_ID=$run_id"
+            echo "TICKET_KEY=$key"
+            echo "TICKET_FILE=$tickets_dir/$run_id.md"
+            echo "RUN_FILE=$runs_dir/$run_id.json"
+            echo "SPEC_DIR=${spec_dir%/}"
+          } >> "$GITHUB_ENV"
+          cat "$tickets_dir/$run_id.md"
+
+      - name: G0 · is the ticket ready? (criterion 3)
+        id: g0
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: |
+          title="$(jq -r .title ticket.json)"
+          set +e
+          $SEULA gate g0 --ticket "$TICKET_FILE" --run "$RUN_ID" --title "$title" --json > g0.json
+          code=$?
+          set -e
+          cat g0.json
+          $SEULA update --run "$RUN_ID" --ticket-url "$(jq -r .url ticket.json)" || echo "::warning::Ticket link not stored"
+          if [ "$code" -ge 64 ]; then echo "::error::seula failed (exit $code)"; exit 1; fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Ask on the ticket (G0 did not pass)
+        if: steps.g0.outputs.code != '0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          jq -r '"seula · G0: this ticket needs input before a spec can be written.\n\n" + (((.asks // []) + (.notes // [])) | map("- " + .) | join("\n"))' g0.json > comment.md
+          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file comment.md
+          $SEULA tracker move --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --state needsInput ||
+            echo "::warning::Could not set the ticket to needsInput"
+
+      - name: Install Claude Code
+        if: steps.g0.outputs.code == '0'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          if [ -n "$SDD_SKILL_REPO" ]; then
+            git clone --depth 1 "https://github.com/$SDD_SKILL_REPO" "$HOME/.claude/skills/spec-driven-development"
+          fi
+
+      - name: Write the spec · Claude with G1 in the loop (criteria 4-5, 10)
+        id: claude
+        if: steps.g0.outputs.code == '0'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: |
+          prompt="$($SEULA prompt spec-writer --run "$RUN_ID" --ticket "$TICKET_FILE" --seula-cmd "$SEULA")"
+          schema='{"type":"object","properties":{"spec_path":{"type":"string"},"status":{"type":"string","enum":["ready","needs_input","blocked"]},"questions":{"type":"array","items":{"type":"string"}},"summary":{"type":"string"}},"required":["spec_path","status","questions","summary"]}'
+          set +e
+          claude -p "$prompt" \
+            --model "$SEULA_MODEL" \
+            --max-turns 40 \
+            --permission-mode dontAsk \
+            --plugin-dir .seula-tool \
+            --allowedTools "Read,Glob,Grep,Skill,Task,Agent,Edit($SPEC_DIR/**),Write($SPEC_DIR/**),Bash($SEULA *)" \
+            --disallowedTools "WebFetch,WebSearch,Bash(git *)" \
+            --output-format json \
+            --json-schema "$schema" > claude.json
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          jq '{is_error, num_turns, total_cost_usd, structured_output}' claude.json || cat claude.json
+
+      - name: Read the result (criteria 8, 11)
+        id: result
+        if: steps.g0.outputs.code == '0'
+        env:
+          CLAUDE_EXIT: ${{ steps.claude.outputs.code }}
+        run: |
+          cost="$(jq -r '.total_cost_usd // 0' claude.json 2>/dev/null || echo 0)"
+          $SEULA update --run "$RUN_ID" --claude-usd "$cost" || echo "::warning::Cost not stored"
+          spec="$(jq -r '.structured_output.spec_path // ""' claude.json 2>/dev/null || echo "")"
+          status="$(jq -r '.structured_output.status // ""' claude.json 2>/dev/null || echo "")"
+          case "$status" in ready|needs_input|blocked) ;; *) status=blocked ;; esac
+          if [ "$CLAUDE_EXIT" != "0" ]; then status=blocked; fi
+          case "$spec" in
+            "$SPEC_DIR"/*.md) name="${spec#"$SPEC_DIR"/}" ;;
+            *) name="" ;;
+          esac
+          if ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*\.md$ ]] || [ ! -f "$spec" ]; then
+            echo "::error::The agent returned no valid spec path: '$spec'"
+            spec=""
+            status=blocked
+          fi
+          # Trust the gate record, not the agent's own report.
+          g1="$(jq -r '[.events[] | select(.gate == "G1")] | last | .result // "none"' "$RUN_FILE")"
+          if [ "$status" = "ready" ] && [ "$g1" != "pass" ] && [ "$g1" != "skipped" ]; then
+            echo "::warning::The agent reported ready, but the last G1 result is '$g1'."
+            status=needs_input
+          fi
+          {
+            echo "spec=$spec"
+            echo "status=$status"
+            echo "g1=$g1"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and open the pull request (criterion 7)
+        id: pr
+        if: steps.g0.outputs.code == '0' && steps.result.outputs.spec != ''
+        env:
+          GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          SPEC: ${{ steps.result.outputs.spec }}
+          STATUS: ${{ steps.result.outputs.status }}
+          G1_RESULT: ${{ steps.result.outputs.g1 }}
+        run: |
+          title="$(jq -r .title ticket.json)"
+          branch="seula/$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')-$(basename "$SPEC" .md)"
+          git config user.name "seula[bot]"
+          git config user.email "seula-bot@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$SPEC_DIR" "$RUN_FILE" "$TICKET_FILE"
+          git commit -m "spec($RUN_ID): $title" -m "Drafted by Claude from the ticket; checked by seula G0 and G1."
+          # The branch belongs to this workflow; a re-run regenerates it.
+          git push --force -u origin "$branch"
+
+          ticket_link="$(jq -r '.links.ticket // ""' "$RUN_FILE")"
+          {
+            echo "## Summary"
+            echo
+            echo "Spec for ${ticket_link:+[$TICKET_KEY]($ticket_link)}${ticket_link:-$TICKET_KEY}: \`$SPEC\`."
+            jq -r '.structured_output.summary // ""' claude.json
+            echo
+            echo "Drafted by Claude from the ticket and checked by [seula](https://github.com/JJJohansson/seula) quality gates. **A person approves the spec and merges.**"
+            if [ "$STATUS" != "ready" ]; then
+              echo
+              echo "> **Draft: needs input ($STATUS).**"
+              jq -r '(.structured_output.questions // [])[] | "> - " + .' claude.json
+            fi
+            echo
+            echo "## Gate results"
+            echo
+            jq -r '.events[] | "- **\(.gate)** attempt \(.attempt): \(.result). \(.summary // "")", ((.feedback // [])[] | "  - \(.)")' "$RUN_FILE"
+            echo
+            jq -r '"Cost: Claude $\(.cost.claudeUsd), Jev $\(.cost.jevUsd)"' "$RUN_FILE"
+            echo
+            echo "## Checks"
+            echo
+            echo "- [x] seula G0 on the ticket"
+            echo "- [x] seula G1 on the spec: format rules and Jev on every acceptance criterion (last result: $G1_RESULT)"
+            echo "- [ ] The repo's own CI: runs on this pull request"
+            echo "- [ ] A person has read the spec and set its status"
+          } > pr-body.md
+
+          if url="$(gh pr view "$branch" --json url -q .url 2>/dev/null)"; then
+            gh pr edit "$branch" --body-file pr-body.md
+          else
+            draft=()
+            if [ "$STATUS" != "ready" ]; then draft=(--draft); fi
+            url="$(gh pr create --base "$BASE_BRANCH" --head "$branch" --title "spec($RUN_ID): $title" --body-file pr-body.md "${draft[@]}")"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          $SEULA update --run "$RUN_ID" --pr-url "$url"
+          git add "$RUN_FILE"
+          git commit -m "seula: link $RUN_ID to its pull request"
+          git push
+
+      - name: Report on the ticket (criterion 9)
+        if: steps.g0.outputs.code == '0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          STATUS: ${{ steps.result.outputs.status }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          if [ "$STATUS" = "ready" ]; then
+            printf 'seula · spec ready for review: %s\n\nG0 and G1 passed. Review the spec, set its status, and merge.\n' "$PR_URL" > comment.md
+            state=specReview
+          else
+            {
+              printf 'seula · the spec needs input (%s). Draft pull request: %s\n\n' "$STATUS" "${PR_URL:-none}"
+              jq -r '(.structured_output.questions // []) | map("- " + .) | join("\n")' claude.json 2>/dev/null || true
+            } > comment.md
+            state=needsInput
+          fi
+          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file comment.md ||
+            echo "::warning::Could not comment on the ticket"
+          $SEULA tracker move --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --state "$state" ||
+            echo "::warning::Could not set the ticket to $state"
+
+      - name: Summary
+        if: always()
+        env:
+          STATUS: ${{ steps.result.outputs.status }}
+        run: |
+          {
+            echo '```'
+            $SEULA status 2>/dev/null || echo "No run file."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$STATUS" = "blocked" ]; then
+            echo "::error::The spec run is blocked; see the ticket and the run file."
+            exit 1
+          fi

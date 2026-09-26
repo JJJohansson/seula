@@ -1,0 +1,43 @@
+name: seula · spec check (reusable)
+
+# specs/ticket-to-spec-workflow.md criterion 12: seula's G1 format rules on every spec that a
+# pull request adds or changes. Files in the config's ignore list are skipped.
+on:
+  workflow_call:
+    inputs:
+      seula-ref:
+        description: "The seula version (tag, branch or commit) to run"
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  check-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          repository: JJJohansson/seula
+          ref: ${{ inputs.seula-ref }}
+          path: .seula-tool
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+      - name: Check changed specs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          spec_dir="$(node .seula-tool/src/cli.ts config | jq -r .specDir)"
+          spec_dir="${spec_dir%/}"
+          mapfile -t files < <(git diff --name-only --diff-filter=AM "$BASE_SHA"...HEAD -- "$spec_dir/*.md")
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No added or changed specs."
+            exit 0
+          fi
+          node .seula-tool/src/cli.ts check-spec "${files[@]}"
