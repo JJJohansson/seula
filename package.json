@@ -2,7 +2,7 @@
   "name": "seula",
   "version": "0.1.0",
   "description": "Spec-driven quality gates for AI coding agents.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "seula": "dist/cli.js"
