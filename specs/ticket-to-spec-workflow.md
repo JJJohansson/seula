@@ -54,6 +54,10 @@ approving it and merging stay with a person.
     check fails when a spec has a format error.
 13. Before it commits or posts anything, the workflow checks the files and the agent's output
     for the value of each secret it holds, and stops the run when it finds one.
+14. The agent's permissions, hooks and tools come only from the workflow. The adopting repo's
+    Claude Code configuration (`.claude/settings.json`, `.claude/settings.local.json`,
+    `.mcp.json`, its project skills and subagents) does not change them, and none of its hooks
+    run.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -82,3 +86,12 @@ approving it and merging stay with a person.
    events in the run file have Jev results, not `skipped`: the subprocess scrub must leave
    `TYPESAFE_API_KEY` to the G1 command. If it doesn't, criterion 8 opens a draft, not a ready
    pull request.
+6. Criterion 14 (added 26 Sep 2026): the agent runs with `--setting-sources user`. Under `-p`,
+   Claude Code ignores a project's allow rules, but it still runs the project's hooks, applies
+   its `env` block, connects its `.mcp.json` servers, and honors a project skill's
+   `allowed-tools`. Leaving out the project and local sources stops all of these. The agent
+   still gets the seula plugin (`--plugin-dir`) and the skills installed in
+   `~/.claude/skills`. It doesn't get the repo's `CLAUDE.md` automatically (the prompt tells it
+   to read that file), `.claude/rules`, or the repo's own `.claude/skills`; a repo gives the
+   agent its spec-driven-development skill with the `sdd-skill-repo` input.
+   `test/workflows.test.ts` checks the flag.

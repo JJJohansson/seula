@@ -81,6 +81,13 @@ test("ticket-to-spec criterion 5: the agent's shell commands can't see the Anthr
   assert.match(step(AGENT), /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"/);
 });
 
+test("ticket-to-spec criterion 14: the repo's Claude Code settings, hooks and project skills don't load", () => {
+  // Without project and local sources, Claude Code reads no .claude/settings*.json, .mcp.json,
+  // project skills or subagents. User sources keep the installed skills.
+  const sources = /--setting-sources (\S+)/.exec(step(AGENT))?.[1]?.split(",") ?? [];
+  assert.deepEqual(sources, ["user"]);
+});
+
 test("ticket-to-spec criterion 8: a skipped G1 counts as ready only without a Jev key", () => {
   const result = step("Read the result");
   assert.match(result, /HAS_JEV: \$\{\{ secrets\.TYPESAFE_API_KEY != '' \}\}/);

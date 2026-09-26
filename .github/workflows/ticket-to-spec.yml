@@ -5,10 +5,11 @@ name: seula · ticket to spec (reusable)
 # Claude write or update the spec with G1 in its loop, opens a pull request, and reports back on
 # the ticket.
 #
-# Security (criteria 5-6, 13): no ticket field appears in a run: script. The ticket reaches the
+# Security (criteria 5-6, 13-14): no ticket field appears in a run: script. The ticket reaches the
 # gates and the agent only as a file written by `seula tracker ticket`. The agent reads only the
 # working directory and its skills, edits only the spec directory, can't run git or fetch web
-# pages, and its only command is G1; its shell commands don't get credentials. No credential is
+# pages, and its only command is G1; its shell commands don't get credentials. The repo's own
+# Claude Code settings, hooks and project skills don't load for it. No credential is
 # on disk while it runs. Plain steps do the git and tracker work, each secret is given only to
 # the steps that use it, and a secret found in the agent's output stops the run.
 on:
@@ -172,10 +173,13 @@ jobs:
           # Criterion 5: reads (file tools and commands such as cat) stay in the working
           # directory and the installed skills. Edit rules also cover Write. The only
           # command is G1.
+          # Criterion 14: only user sources load, so the repo's .claude/settings*.json, .mcp.json,
+          # project skills and subagents can't add hooks, env values or permissions.
           set +e
           claude -p "$prompt" \
             --model "$SEULA_MODEL" \
             --max-turns 40 \
+            --setting-sources user \
             --permission-mode dontAsk \
             --settings '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}' \
             --add-dir "$HOME/.claude/skills" \
