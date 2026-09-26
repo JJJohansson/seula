@@ -151,7 +151,10 @@ jobs:
       - name: Install Claude Code
         if: steps.g0.outputs.code == '0'
         run: |
-          npm install -g @anthropic-ai/claude-code
+          # specs/security.md criterion 2: an exact version (the "stable" channel), at least
+          # 2.1.257 for the agent's permission settings. Bump it by hand after checking them;
+          # Dependabot doesn't see global installs.
+          npm install -g @anthropic-ai/claude-code@2.1.274
           claude --version
           mkdir -p "$HOME/.claude/skills"
           if [ -n "$SDD_SKILL_REPO" ]; then

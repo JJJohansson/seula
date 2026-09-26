@@ -151,3 +151,18 @@ test("ticket-to-spec criterion 13: clean output passes, and unset or empty secre
   );
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
+
+// Claude Code 2.1.257 is the first version with permissions.blockReadsOutsideWorkingDirectories,
+// the newest setting that the agent's step relies on (criterion 5).
+const MIN_CLAUDE_CODE = [2, 1, 257];
+
+test("security criterion 2: Claude Code is installed at an exact version that supports the agent's settings", () => {
+  const install = /npm install -g @anthropic-ai\/claude-code(\S*)/.exec(script("Install Claude Code"));
+  assert.ok(install, "no Claude Code install");
+  const version = /^@(\d+)\.(\d+)\.(\d+)$/.exec(install[1] ?? "");
+  assert.ok(version, `not pinned to an exact version: "@anthropic-ai/claude-code${install[1]}"`);
+  const asNumber = (parts: number[]) => parts.reduce((n, part) => n * 10_000 + part, 0);
+  const v = version.slice(1).map(Number);
+  const atLeast = asNumber(v) >= asNumber(MIN_CLAUDE_CODE);
+  assert.ok(atLeast, `Claude Code ${v.join(".")} is older than ${MIN_CLAUDE_CODE.join(".")}`);
+});

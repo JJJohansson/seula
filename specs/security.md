@@ -1,6 +1,6 @@
 # FEATURE: Security bar (supply chain, secrets, threat model)
 
-> **Status:** Idea (drafted 2026-09-26, criteria pending confirmation)
+> **Status:** Approved (2026-09-26). Criteria 1 and 2 are met; the rest are built after 2026-09-28. The open questions are still open.
 
 ## OVERVIEW
 The security rules that apply to all of seula: its CLI, its reusable workflows and its own

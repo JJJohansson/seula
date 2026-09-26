@@ -35,11 +35,11 @@ confirming by a person.
   UI ticket gets a spec.
 - [`commit-messages.md`](commit-messages.md): commitlint checks seula's own commit messages in
   CI and in a local git hook. Not yet built.
+- [`security.md`](security.md): the security bar for all of seula (supply chain, secrets,
+  network) and its threat model. Criteria 1–2 met; the rest after 2026-09-28.
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.
-- [`security.md`](security.md): the security bar for all of seula (supply chain, secrets,
-  network) and its threat model.
 - G2 plan coverage, G3 criterion citations in tests, G4 review, G5 smoke check: described in
   [`../docs/quality-gates.md`](../docs/quality-gates.md); specs to be written before they are
   built.
