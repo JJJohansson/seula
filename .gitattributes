@@ -1,0 +1,3 @@
+# Keep LF in every checkout, Windows included, so local tests match CI and `seula init`
+# copies LF templates.
+* text=auto eol=lf
