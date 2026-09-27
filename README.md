@@ -60,6 +60,9 @@ files. Then add the secrets it lists and follow the setup guide for your tracker
 Either way, the result is a pull request with the spec, the ticket and its comments, and every
 gate result, and a comment on the ticket. A person approves the spec and merges.
 
+When a run goes wrong, seula names the step that failed.
+[Troubleshooting](docs/troubleshooting.md) has one entry for each step.
+
 ## Running the gates by hand
 
 ```bash

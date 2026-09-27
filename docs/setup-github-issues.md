@@ -76,9 +76,6 @@ be changed in `seula.config.json` → `tracker`.
 | Symptom | Likely cause |
 |---|---|
 | Adding the label starts nothing | The caller workflow isn't on the default branch, or the label name differs from `triggerLabel` |
-| "Check out the repo" fails | `SEULA_GH_TOKEN` is missing, expired, or has no Contents access |
-| "Check out seula" fails | The seula repo isn't reachable: make it public, or allow access to it in its Actions settings |
-| "Write the spec" fails to authenticate | `SEULA_ANTHROPIC_API_KEY` is missing or wrong (seula doesn't read a secret named `ANTHROPIC_API_KEY`) |
-| The issue gets "seula failed to run" | A technical failure, not a problem with the issue. The comment says which step failed, or why Claude stopped; that step's log in the linked run has the details. Re-run the workflow, or remove the trigger label and add it again |
+| A step fails, or the issue gets "seula failed to run" | See [troubleshooting](troubleshooting.md): one entry for each step, under its name in Actions. Remove the trigger label and add it again to start seula again |
 | The comment or label step warns | The token lacks Issues: Read and write |
 | The pull request has no CI checks | The branch was pushed with `GITHUB_TOKEN` instead of `SEULA_GH_TOKEN` |
