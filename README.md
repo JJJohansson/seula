@@ -70,7 +70,8 @@ npx github:JJJohansson/seula status
 ```
 
 `gate g1` runs the format rules first; only a spec that passes them goes to Jev. Put your Jev
-key in the environment or in a `.env` file as `TYPESAFE_API_KEY`. Without a key, the Jev
+key in the environment or in a `.env` file as `TYPESAFE_API_KEY` (copy
+[`.env.example`](.env.example), which also lists the tracker variables). Without a key, the Jev
 checks are skipped (exit 0) with a message saying so.
 
 Example output (numbers illustrative):
