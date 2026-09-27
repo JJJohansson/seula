@@ -1,6 +1,6 @@
-/** GitHub Issues adapter (specs/trackers.md criteria 4, 5, 6, 7, 8, 10). */
-import type { TrackerState } from "../config.ts";
-import { type CommentPage, type Ticket, TicketError, type Tracker, failIfNotOk, httpsOrEmpty, ticketComment } from "./types.ts";
+/** GitHub Issues adapter (specs/trackers.md criteria 4, 5, 6, 7, 8, 10, 14). */
+import type { TrackerState, TrackerStates } from "../config.ts";
+import { type CommentPage, type Ticket, TicketError, type TicketState, type Tracker, failIfNotOk, httpsOrEmpty, matchState, stateName, ticketComment } from "./types.ts";
 
 export interface GitHubEnv {
   GITHUB_TOKEN?: string;
@@ -24,11 +24,11 @@ export class GitHubTracker implements Tracker {
   readonly type = "github" as const;
   readonly keyPattern = /^[1-9][0-9]*$/;
   private readonly env: GitHubEnv;
-  private readonly states: Record<TrackerState, string>;
+  private readonly states: TrackerStates;
   private readonly triggerLabel: string;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(env: GitHubEnv, states: Record<TrackerState, string>, triggerLabel: string, fetchImpl: typeof fetch = fetch) {
+  constructor(env: GitHubEnv, states: TrackerStates, triggerLabel: string, fetchImpl: typeof fetch = fetch) {
     this.env = env;
     this.states = states;
     this.triggerLabel = triggerLabel;
@@ -83,10 +83,20 @@ export class GitHubTracker implements Tracker {
     await failIfNotOk(res, `GitHub comment on #${key}`, CREDENTIAL);
   }
 
+  async state(key: string): Promise<TicketState> {
+    this.checkKey(key);
+    const res = await this.api(`/issues/${key}`, { method: "GET" });
+    await failIfNotOk(res, `GitHub labels of #${key}`, CREDENTIAL);
+    const data = (await res.json()) as { labels?: unknown[] };
+    const names = (data.labels ?? []).map((l) => (typeof l === "string" ? l : (l as { name?: unknown } | null)?.name)).filter((n): n is string => typeof n === "string");
+    const status = names.find((n) => matchState(this.states, n) !== null) ?? null;
+    return { status, state: matchState(this.states, status) };
+  }
+
   async move(key: string, state: TrackerState): Promise<void> {
     this.checkKey(key);
-    const target = this.states[state];
-    const remove = [...Object.values(this.states), this.triggerLabel].filter((l) => l !== target);
+    const target = stateName(this.states, state);
+    const remove = [...Object.values(this.states), this.triggerLabel].filter((l): l is string => !!l && l !== target);
     for (const label of remove) {
       const res = await this.api(`/issues/${key}/labels/${encodeURIComponent(label)}`, { method: "DELETE" });
       if (res.status !== 404) await failIfNotOk(res, `GitHub remove label "${label}" from #${key}`, CREDENTIAL);

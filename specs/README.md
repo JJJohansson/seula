@@ -38,8 +38,8 @@ confirming by a person.
 - [`security.md`](security.md): the security bar for all of seula (supply chain, secrets,
   network) and its threat model. Criteria 1–2 met; the rest after 2026-09-28.
 - [`board-sync.md`](board-sync.md) (approved 28 Sep 2026): a check that blocks merging a spec
-  pull request while its ticket needs input, and a move to Planning when it is merged. Not yet
-  built.
+  pull request while its ticket needs input, and a move to Planning when it is merged. Unit 1
+  of 3 built.
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.

@@ -328,3 +328,82 @@ test("trackers criterion 10: a Link header that claims a huge last page costs at
   await new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", f.impl).comments("42", 30);
   assert.ok(f.calls.length <= 3, `${f.calls.length} reads`);
 });
+
+// Board sync (criteria 14–15, and planning in criterion 6). The "ticket state" check reads the
+// ticket's state; a merged spec pull request moves the ticket to Planning.
+const JIRA_PLANNING = { ...DEFAULT_STATES.jira, planning: "Planning" };
+const GH_PLANNING = { ...DEFAULT_STATES.github, planning: "seula:planning" };
+
+test("trackers criterion 14: Jira reads the status name and matches it to a configured state, ignoring case", async () => {
+  const f = fakeFetch({ "GET /rest/api/2/issue/MP-7?fields=status": [200, { fields: { status: { name: "NEEDS INPUT" } } }] });
+  assert.deepEqual(await new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, f.impl).state("MP-7"), { status: "NEEDS INPUT", state: "needsInput" });
+  assert.equal(f.calls.length, 1);
+});
+
+test("trackers criterion 14: a Jira status that matches no configured state gives state null", async () => {
+  const f = fakeFetch({ "GET /rest/api/2/issue/MP-7?fields=status": [200, { fields: { status: { name: "Building" } } }] });
+  assert.deepEqual(await new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, f.impl).state("MP-7"), { status: "Building", state: null });
+});
+
+test("trackers criterion 14: GitHub reports the first configured state label, and null without one", async () => {
+  const f = fakeFetch({ "GET /issues/42": [200, { labels: [{ name: "bug" }, { name: "seula:spec-review" }, { name: "seula:needs-input" }] }] });
+  assert.deepEqual(await new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", f.impl).state("42"), { status: "seula:spec-review", state: "specReview" });
+  const none = fakeFetch({ "GET /issues/42": [200, { labels: [{ name: "bug" }] }] });
+  assert.deepEqual(await new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", none.impl).state("42"), { status: null, state: null });
+});
+
+test("trackers criterion 14: Planning counts as the planning state once it is configured", async () => {
+  const f = fakeFetch({ "GET /rest/api/2/issue/MP-7?fields=status": [200, { fields: { status: { name: "Planning" } } }] });
+  assert.deepEqual(await new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, f.impl).state("MP-7"), { status: "Planning", state: null });
+  assert.deepEqual(await new JiraTracker(JIRA_ENV, JIRA_PLANNING, f.impl).state("MP-7"), { status: "Planning", state: "planning" });
+});
+
+test("trackers criterion 14: an invalid key is refused before any API call", async () => {
+  const f = fakeFetch({});
+  await assert.rejects(new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, f.impl).state("x; rm"), TicketError);
+  await assert.rejects(new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", f.impl).state("x; rm"), TicketError);
+  assert.equal(f.calls.length, 0);
+});
+
+test("trackers criterion 9: reading the state with a refused credential is a credential error", async () => {
+  const f = fakeFetch({ "GET /rest/api/2/issue/MP-7?fields=status": [401, { message: "Unauthorized" }] });
+  await assert.rejects(new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, f.impl).state("MP-7"), (e) => {
+    assert.ok(e instanceof CredentialError);
+    assert.match(e.message, /JIRA_EMAIL and JIRA_API_TOKEN/);
+    return true;
+  });
+});
+
+test("trackers criterion 6: Jira moves to planning by its configured status name", async () => {
+  const f = fakeFetch({
+    "GET /rest/api/2/issue/MP-7/transitions": [200, { transitions: [{ id: "11", to: { name: "Done" } }, { id: "41", to: { name: "planning" } }] }],
+    "POST /rest/api/2/issue/MP-7/transitions": [204, null],
+  });
+  await new JiraTracker(JIRA_ENV, JIRA_PLANNING, f.impl).move("MP-7", "planning");
+  assert.deepEqual(f.calls[1]?.body, { transition: { id: "41" } });
+});
+
+test("trackers criterion 6: GitHub moving to planning removes the other state labels, and back again", async () => {
+  const routes = {
+    "DELETE /issues/42/labels/seula%3Aneeds-input": [404, {}],
+    "DELETE /issues/42/labels/seula%3Aspec-review": [200, []],
+    "DELETE /issues/42/labels/seula%3Aplanning": [200, []],
+    "DELETE /issues/42/labels/seula%3Aready-for-spec": [404, {}],
+    "POST /app/labels": [422, {}],
+    "POST /issues/42/labels": [200, []],
+  } as const satisfies Record<string, [number, unknown]>;
+  const f = fakeFetch({ ...routes });
+  await new GitHubTracker(GH_ENV, GH_PLANNING, "seula:ready-for-spec", f.impl).move("42", "planning");
+  const removed = f.calls.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.url.split("/labels/")[1] ?? ""));
+  assert.deepEqual(removed.sort(), ["seula:needs-input", "seula:ready-for-spec", "seula:spec-review"]);
+  assert.deepEqual(f.calls.at(-1)?.body, { labels: ["seula:planning"] });
+  const back = fakeFetch({ ...routes });
+  await new GitHubTracker(GH_ENV, GH_PLANNING, "seula:ready-for-spec", back.impl).move("42", "specReview");
+  assert.ok(back.calls.some((c) => c.method === "DELETE" && c.url.endsWith("/labels/seula%3Aplanning")));
+});
+
+test("trackers criterion 15: planning has no default for either tracker", () => {
+  assert.equal("planning" in DEFAULT_STATES.jira, false);
+  assert.equal("planning" in DEFAULT_STATES.github, false);
+  assert.equal("planning" in config().tracker.states, false);
+});
