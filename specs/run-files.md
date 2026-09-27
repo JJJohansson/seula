@@ -19,14 +19,14 @@ see at a glance which features wait for their decision.
   (optional reason), `events[]` (`gate`, `result`, `at`, `round`, `attempt`, `summary`,
   `feedback[]`, `costUsd`),
   `links` (`ticket`, `pr`), `cost` (`claudeUsd`, `jevUsd`, `claudeRuns[]`), `updatedAt`.
-- `claudeRuns[]`: `at`, `round`, `usd`, `turns`, `durationMs`, `models` (per model name: `inputTokens`,
-  `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `usd`). Each field is present only
-  when Claude's output had it.
+- `claudeRuns[]`: `at`, `round`, `usd`, `turns`, `durationMs`, `models` (per model name:
+  `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `usd`). Each field is
+  present only when Claude's output had it.
 
 ## ACCEPTANCE CRITERIA
-1. A gate command with `--run <id>` appends one event that records the gate, the result, the time,
-   the round, the attempt number (1 for the first event of that gate in the round), the summary, the feedback lines and
-   the Jev cost.
+1. A gate command with `--run <id>` appends one event that records the gate, the result, the
+   time, the round, the attempt number (1 for the first event of that gate in the round), the
+   summary, the feedback lines and the Jev cost.
 2. A run id may contain only letters, digits, `.`, `_` and `-`. Any other id is rejected before a
    file is written.
 3. After a pass or a skip, `step` and `waitingOn` become: after G0, spec (agent); after G1, spec
@@ -35,9 +35,8 @@ see at a glance which features wait for their decision.
 4. After a back, the run waits on the agent, except after a G0 back, when it waits on a person.
    After an unsure result, the run waits on a person.
 5. When one gate has sent the feature back more than `maxBacks` times (default 2) in the
-   current round, the run is
-   marked blocked, waits on a person, and the gate command exits 3. A later pass of that gate
-   removes the block.
+   current round, the run is marked blocked, waits on a person, and the gate command exits 3.
+   A later pass of that gate removes the block.
 6. The Jev cost of each event is added to `cost.jevUsd`.
 7. `seula update --run <id>` adds `--claude-usd` to `cost.claudeUsd` and stores `--ticket-url`
    and `--pr-url`. It rejects a negative cost and any link that does not start with `https:`.
@@ -48,8 +47,9 @@ see at a glance which features wait for their decision.
    "answer the ticket questions" when the step is input and the run waits on a person, and
    "loop limit reached" when the run is blocked.
 10. `seula update --run <id> --claude-result <file>` reads Claude Code's JSON output, adds its
-    total cost to `cost.claudeUsd`, and appends one entry to `cost.claudeRuns` with the round, the turns,
-    the duration, and the tokens and cost per model. It stores only numbers and model names:
+    total cost to `cost.claudeUsd`, and appends one entry to `cost.claudeRuns` with the round,
+    the turns, the duration, and the tokens and cost per model. It stores only numbers and
+    model names:
     a value that is not a finite, non-negative number is left out, and a model name that
     contains anything other than letters, digits, `.`, `_`, `-` or `[`, `]` is left out.
     Claude's text output is never stored.

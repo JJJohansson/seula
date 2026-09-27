@@ -47,8 +47,8 @@ approving it and merging stay with a person.
    pull request (or updates the existing one) that links the ticket, lists every gate result and
    its feedback, and states which checks ran.
 8. The pull request is ready for review only when the agent has no open questions and the last
-   G1 result of the current round (criterion 22) is pass, skipped because no Jev key is configured, or unsure (review),
-   whatever the agent reports; otherwise it is a draft. When G1 is unsure, the pull request
+   G1 result of the current round (criterion 22) is pass, skipped because no Jev key is
+   configured, or unsure (review), whatever the agent reports; otherwise it is a draft. When G1 is unsure, the pull request
    lists the unsure criteria under "Needs your judgement". A pull request that a later run
    updates follows that run's result.
 9. After the pull request opens, the workflow posts its link on the ticket and sets the ticket
@@ -76,17 +76,18 @@ approving it and merging stay with a person.
     pull request and an earlier run added a spec on its branch that is not on the base branch,
     the agent gets that spec and is told to update it, not to write another. A
     `seula/<ticket key>` branch without an open pull request (closed or merged) is not read:
-    the run starts from the base branch and replaces that branch. If the agent still returns another file, the earlier
-    draft is removed, so the pull request holds one spec for the ticket.
+    the run starts from the base branch and replaces that branch. If the agent still returns
+    another file, the earlier draft is removed, so the pull request holds one spec for the
+    ticket.
 17. A technical failure is not a result about the ticket. A technical failure is a step that
     fails or is cancelled (a timeout included), Claude exiting with an error (the turn cap
     included), or the agent returning no valid spec path. The workflow then doesn't change the
     ticket's state, and posts one comment on the ticket: "seula failed to run", the link to the
     workflow run, why it failed, and how to start it again. Why it failed is the name of the
     first step that failed, or for a Claude error its kind: the turn cap, a refused key
-    (criterion 27), another API error, or another error. The comment holds only fixed text, the step's name and the link, never the
-    agent's output (criterion 13). The run fails visibly in Actions. When
-    Claude exits with an error or returns no valid spec path, no pull request is opened, even
+    (criterion 27), another API error, or another error. The comment holds only fixed text,
+    the step's name and the link, never the agent's output (criterion 13). The run fails
+    visibly in Actions. When Claude exits with an error or returns no valid spec path, no pull request is opened, even
     if the agent wrote a file. The agent's own `blocked` (G1's loop limit) is a result, not a
     failure: it stays with criteria 8 and 9.
 18. After it reads the ticket and before G0, the workflow adds the ticket's comments to the
@@ -113,7 +114,8 @@ approving it and merging stay with a person.
     current round has no G1 event, its last G1 result is none, and the pull request is a draft.
 23. The workflow doesn't start a new round when nothing is new. Nothing is new when all of
     these are true: the ticket has an open pull request with a valid run file (criteria 20–21);
-    the last round in that file has a G1 result of pass, back or unsure; and the ticket's
+    the last committed round in that file has a G1 result of pass, back or unsure, or of
+    skipped when no Jev key is configured (as in criterion 8); and the ticket's
     description and its comments that are not labelled `seula` ([`trackers.md`](trackers.md)
     criterion 11) are the same as in the ticket file on that branch. Then the workflow runs
     neither G0 nor Claude and commits nothing. It posts one comment: nothing changed on the
@@ -125,7 +127,8 @@ approving it and merging stay with a person.
     number, and that each round runs Claude again. The warning never stops a run and never
     changes the ticket's state.
 25. The pull request shows the round number and the current round's gate results. It lists
-    the earlier rounds' gate results under "Earlier rounds (restored from the branch)". Its
+    the earlier rounds' gate results under "Earlier rounds (from the run file on `<branch>`)",
+    with the name of the branch that the run file came from. Its
     cost line gives the total over all rounds and, next to it, the current round's Claude cost.
 26. Before it commits the run file, the workflow sets the run file's step and waiting-on to the
     state that the round gives the ticket (criterion 9), with `seula update --state`
@@ -183,8 +186,9 @@ approving it and merging stay with a person.
 - A person's comment that starts with `seula · ` is labelled `seula` and doesn't count as new
   for criterion 23. The comment of criterion 23 tells the author to add a comment, so a second
   comment starts the round.
-- The restored run file comes from a branch that anyone with push access can change. Earlier
-  rounds' results are shown as restored and never decide anything (criterion 22).
+- The continued run file comes from a branch that anyone with push access can change. Earlier
+  rounds' results are shown with the branch they came from (criterion 25) and never decide
+  anything (criterion 22).
 - Jev refuses its key in the workflow's own G1 (criterion 15) but not in G0 of the same run:
   G1 couldn't run, so the pull request stays a draft (criterion 8). The warning names
   `TYPESAFE_API_KEY` (criterion 27).
