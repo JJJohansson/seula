@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026.
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 8 and 16, and criteria 20–25, drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -44,8 +44,8 @@ approving it and merging stay with a person.
 7. The workflow commits the spec, the ticket file and the run file to the branch, and opens a
    pull request (or updates the existing one) that links the ticket, lists every gate result and
    its feedback, and states which checks ran.
-8. The pull request is ready for review only when the agent has no open questions and the run
-   file's last G1 result is pass, skipped because no Jev key is configured, or unsure (review),
+8. The pull request is ready for review only when the agent has no open questions and the last
+   G1 result of the current round (criterion 22) is pass, skipped because no Jev key is configured, or unsure (review),
    whatever the agent reports; otherwise it is a draft. When G1 is unsure, the pull request
    lists the unsure criteria under "Needs your judgement". A pull request that a later run
    updates follows that run's result.
@@ -70,9 +70,11 @@ approving it and merging stay with a person.
     criterion 8. When it sends the spec back or is unsure, its feedback goes on the ticket as
     well as in the pull request.
 16. Every run for the same ticket uses one branch and one pull request: the ticket's open
-    pull request branch if it has one, else `seula/<ticket key>`. When an earlier run for the
-    ticket added a spec that is not on the base branch, the agent gets that spec and is told
-    to update it, not to write another. If the agent still returns another file, the earlier
+    pull request branch if it has one, else `seula/<ticket key>`. When the ticket has an open
+    pull request and an earlier run added a spec on its branch that is not on the base branch,
+    the agent gets that spec and is told to update it, not to write another. A
+    `seula/<ticket key>` branch without an open pull request (closed or merged) is not read:
+    the run starts from the base branch and replaces that branch. If the agent still returns another file, the earlier
     draft is removed, so the pull request holds one spec for the ticket.
 17. A technical failure is not a result about the ticket. A technical failure is a step that
     fails or is cancelled (a timeout included), Claude exiting with an error (the turn cap
@@ -94,11 +96,41 @@ approving it and merging stay with a person.
     never address an agent or an automated system, and never tell anyone to run a command. A
     comment that asks for input (criteria 3 and 9) ends with one line: the ticket's author can
     answer in a comment, then start seula again.
+20. Each run for a ticket is one round. Before G0, the workflow looks for the ticket's open
+    pull request (criterion 16). When there is one, the workflow restores the run file from its
+    branch and starts a new round in it ([`run-files.md`](run-files.md) criterion 11). The
+    earlier rounds' events, links and cost stay in the file. When there is no open pull
+    request, the run starts a new run file at round 1.
+21. The workflow uses a restored run file only when it is valid JSON, has the ticket's run id,
+    and has a round that is a whole number of 1 or more. Otherwise the run starts a new run file
+    at round 1 and logs a warning.
+22. Every decision in a round reads only that round's events: the last G1 result (criteria 8
+    and 15), the unsure criteria under "Needs your judgement", the feedback on the ticket
+    (criterion 9) and the loop limit ([`run-files.md`](run-files.md) criterion 5). When the
+    current round has no G1 event, its last G1 result is none, and the pull request is a draft.
+23. The workflow doesn't start a new round when nothing is new. Nothing is new when all of
+    these are true: the ticket has an open pull request with a valid run file (criteria 20–21);
+    the last round in that file has a G1 result of pass, back or unsure; and the ticket's
+    description and its comments that are not labelled `seula` ([`trackers.md`](trackers.md)
+    criterion 11) are the same as in the ticket file on that branch. Then the workflow runs
+    neither G0 nor Claude and commits nothing. It posts one comment: nothing changed on the
+    ticket since round N, the link to the pull request, and that the ticket's author can add a
+    comment with what changed, then start seula again. It sets the ticket to `specReview` when
+    the pull request is ready for review, and to `needsInput` when it is a draft.
+24. `roundWarning` in `seula.config.json` is a whole number, default 3; 0 turns the warning
+    off. From round `roundWarning` on, the comment of criterion 9 has one more line: the round
+    number, and that each round runs Claude again. The warning never stops a run and never
+    changes the ticket's state.
+25. The pull request shows the round number and the current round's gate results. It lists
+    the earlier rounds' gate results under "Earlier rounds (restored from the branch)". Its
+    cost line gives the total over all rounds and, next to it, the current round's Claude cost.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
 - Merging anything automatically.
 - Gates G2 to G5.
+- A hard stop after a number of rounds. The round warning (criterion 24) only informs.
+- Recording rounds that don't reach the pull request (a G0 back or a technical failure).
 
 ## EDGE CASES
 - The same ticket triggers again after `needsInput`: the branch is regenerated from the base
@@ -117,6 +149,18 @@ approving it and merging stay with a person.
 - No `TYPESAFE_API_KEY`: Jev checks are recorded as skipped; the format checks still run.
 - A tracker call fails after the pull request opened: the run logs a warning and keeps the
   pull request.
+- G0 sends back, or the run fails (criterion 17), on a ticket with an open pull request: the
+  round commits nothing, so the next round restores the last committed round. Only rounds
+  that reach the pull request are counted.
+- The last round's G1 couldn't run (no G1 result, or skipped with a Jev key configured): a
+  retry is never "nothing new" (criterion 23), so the round runs.
+- A person's comment that starts with `seula · ` is labelled `seula` and doesn't count as new
+  for criterion 23. The comment of criterion 23 tells the author to add a comment, so a second
+  comment starts the round.
+- The restored run file comes from a branch that anyone with push access can change. Earlier
+  rounds' results are shown as restored and never decide anything (criterion 22).
+- A run file written before rounds existed is round 1 ([`run-files.md`](run-files.md)
+  criterion 12).
 
 ## PLAN
 1. Move the drafted workflow into seula as `.github/workflows/ticket-to-spec.yml`

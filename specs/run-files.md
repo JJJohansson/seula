@@ -1,6 +1,6 @@
 # FEATURE: Run files and status
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5 and 10, and criteria 11–12, drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 Every gate result for a feature is appended to one JSON file, and `seula status` shows where
@@ -15,16 +15,17 @@ see at a glance which features wait for their decision.
 - Outputs: `.seula/runs/<id>.json` (directory configurable as `runsDir`); a status table or JSON.
 
 ## DATA SCHEMA
-- `id`, `title`, `spec`, `step`, `waitingOn` (`agent` | `human` | `none`), `blocked` (optional
-  reason), `events[]` (`gate`, `result`, `at`, `attempt`, `summary`, `feedback[]`, `costUsd`),
+- `id`, `title`, `spec`, `round`, `step`, `waitingOn` (`agent` | `human` | `none`), `blocked`
+  (optional reason), `events[]` (`gate`, `result`, `at`, `round`, `attempt`, `summary`,
+  `feedback[]`, `costUsd`),
   `links` (`ticket`, `pr`), `cost` (`claudeUsd`, `jevUsd`, `claudeRuns[]`), `updatedAt`.
-- `claudeRuns[]`: `at`, `usd`, `turns`, `durationMs`, `models` (per model name: `inputTokens`,
+- `claudeRuns[]`: `at`, `round`, `usd`, `turns`, `durationMs`, `models` (per model name: `inputTokens`,
   `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `usd`). Each field is present only
   when Claude's output had it.
 
 ## ACCEPTANCE CRITERIA
 1. A gate command with `--run <id>` appends one event that records the gate, the result, the time,
-   the attempt number (1 for the first event of that gate), the summary, the feedback lines and
+   the round, the attempt number (1 for the first event of that gate in the round), the summary, the feedback lines and
    the Jev cost.
 2. A run id may contain only letters, digits, `.`, `_` and `-`. Any other id is rejected before a
    file is written.
@@ -33,7 +34,8 @@ see at a glance which features wait for their decision.
    after G5, done (none).
 4. After a back, the run waits on the agent, except after a G0 back, when it waits on a person.
    After an unsure result, the run waits on a person.
-5. When one gate has sent the feature back more than `maxBacks` times (default 2), the run is
+5. When one gate has sent the feature back more than `maxBacks` times (default 2) in the
+   current round, the run is
    marked blocked, waits on a person, and the gate command exits 3. A later pass of that gate
    removes the block.
 6. The Jev cost of each event is added to `cost.jevUsd`.
@@ -45,11 +47,16 @@ see at a glance which features wait for their decision.
 9. The next action reads "approve spec" after a G1 pass, "merge" after a G4 pass, "answer the
    ticket questions" after a G0 back, and "loop limit reached" when the run is blocked.
 10. `seula update --run <id> --claude-result <file>` reads Claude Code's JSON output, adds its
-    total cost to `cost.claudeUsd`, and appends one entry to `cost.claudeRuns` with the turns,
+    total cost to `cost.claudeUsd`, and appends one entry to `cost.claudeRuns` with the round, the turns,
     the duration, and the tokens and cost per model. It stores only numbers and model names:
     a value that is not a finite, non-negative number is left out, and a model name that
     contains anything other than letters, digits, `.`, `_`, `-` or `[`, `]` is left out.
     Claude's text output is never stored.
+11. A new run file starts at round 1. `seula update --run <id> --new-round` adds 1 to `round`,
+    sets `step` to `input` and `waitingOn` to `agent`, and removes `blocked`. The events, the
+    links and the cost stay.
+12. A run file without `round` is read as round 1. An event or a Claude run without `round`
+    belongs to round 1.
 
 ## OUT OF SCOPE
 - A web dashboard (see [`dashboard.md`](dashboard.md)).
