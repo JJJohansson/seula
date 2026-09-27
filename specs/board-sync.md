@@ -1,6 +1,6 @@
 # FEATURE: Board sync (the ticket follows the spec pull request)
 
-> **Status:** Approved (28 Sep 2026). Unit 1 (trackers criteria 14–15) built 28 Sep 2026; units 2–3 not yet. **The change to criterion 2 and the data schema (the key from the branch name) drafted 28 Sep 2026, not approved:** the MEAL-4 run showed that the branch is named after the run id in lowercase.
+> **Status:** Approved (28 Sep 2026). Unit 1 (trackers criteria 14–15) built 28 Sep 2026; units 2–3 not yet. **The change to criterion 2 and the data schema (the key from the branch name) approved 28 Sep 2026:** the MEAL-4 run showed that the branch is named after the run id in lowercase.
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `board-sync.yml`, that keeps a ticket's state in step with
