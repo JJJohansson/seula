@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026)
+> **Status:** Approved (26 Sep 2026). Criteria 18–19 and the additions to 11 and 17 approved 27 Sep 2026, being built.
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -20,8 +20,9 @@ approving it and merging stay with a person.
   `SEULA_GH_TOKEN`, optional `TYPESAFE_API_KEY`, and for Jira `JIRA_BASE_URL`, `JIRA_EMAIL`,
   `JIRA_API_TOKEN`. The caller maps the repo's secrets onto these names (see
   [`adoption.md`](adoption.md), criterion 3).
-- Outputs: a branch `seula/<run id>-<spec name>` with the spec change, the ticket file and the
-  run file; a pull request; a comment and a state change on the ticket.
+- Outputs: a branch `seula/<ticket key>` (criterion 16) with the spec change, the ticket file
+  (the description and the comments) and the run file; a pull request; a comment and a state
+  change on the ticket.
 
 ## ACCEPTANCE CRITERIA
 1. `ticket-to-spec.yml` runs on `workflow_call` with the inputs and secrets above, and checks
@@ -53,7 +54,8 @@ approving it and merging stay with a person.
    any), or to `needsInput` with the agent's open questions and G1's feedback when not.
 10. The workflow never sets a spec to a buildable status; a new spec gets the first
     non-buildable status in the config (`Idea` by default).
-11. The Claude cost of the run is added to the run file.
+11. The Claude cost of the run is added to the run file, with its breakdown: turns, duration,
+    and tokens and cost per model ([`run-files.md`](run-files.md) criterion 10).
 12. `spec-check.yml` runs on `workflow_call`, finds the spec files that the pull request adds
     or changes, and runs `seula check-spec` on them, skipping the config's `ignore` list. The
     check fails when a spec has a format error.
@@ -76,11 +78,22 @@ approving it and merging stay with a person.
     fails or is cancelled (a timeout included), Claude exiting with an error (the turn cap
     included), or the agent returning no valid spec path. The workflow then doesn't change the
     ticket's state, and posts one comment on the ticket: "seula failed to run", the link to the
-    workflow run, and how to start it again. The comment holds only this fixed text and the
-    link, never the agent's output (criterion 13). The run fails visibly in Actions. When
+    workflow run, why it failed, and how to start it again. Why it failed is the name of the
+    first step that failed, or for a Claude error its kind: the turn cap, an API error, or
+    another error. The comment holds only fixed text, the step's name and the link, never the
+    agent's output (criterion 13). The run fails visibly in Actions. When
     Claude exits with an error or returns no valid spec path, no pull request is opened, even
     if the agent wrote a file. The agent's own `blocked` (G1's loop limit) is a result, not a
     failure: it stays with criteria 8 and 9.
+18. After it reads the ticket and before G0, the workflow adds the ticket's comments to the
+    ticket file with `seula tracker comments` ([`trackers.md`](trackers.md) criteria 10–13).
+    G0 and the agent read the description and the comments as one ticket. Only this step and
+    the steps that post on the ticket get the tracker's credentials. When the comments can't be
+    read, the run is a technical failure (criterion 17).
+19. seula's comments on a ticket describe what happened and what a person can do next. They
+    never address an agent or an automated system, and never tell anyone to run a command. A
+    comment that asks for input (criteria 3 and 9) ends with one line: the ticket's author can
+    answer in a comment, then start seula again.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -99,6 +112,8 @@ approving it and merging stay with a person.
   because it holds no agent output.
 - The failure comment itself can't be posted (for example an expired tracker token): the run
   logs a warning; the run's own failure is still visible in Actions.
+- Claude's output has no cost breakdown (an older Claude Code, or a crash): the total cost is
+  stored when there is one, and the breakdown is left out. The run doesn't fail for it.
 - No `TYPESAFE_API_KEY`: Jev checks are recorded as skipped; the format checks still run.
 - A tracker call fails after the pull request opened: the run logs a warning and keeps the
   pull request.
@@ -156,3 +171,13 @@ approving it and merging stay with a person.
    told its author nothing they could fix. A step that failed outright (for example the sandbox
    self-test) was the opposite: every later step was skipped and the ticket got nothing. Both
    now post "seula failed to run" with the run link and leave the ticket where it is.
+12. Criteria 18–19 and the reason in criterion 17 (added 27 Sep 2026). Answers written as
+   comments never reached the agent (see [`trackers.md`](trackers.md), plan step 4). The
+   comments now go into the ticket file. G0 reads them too: an answer to G0's own question must
+   be able to make the ticket pass. Because G0 now reads seula's comments, those comments are
+   written so that G0's check for text aimed at the agent has nothing to find in them
+   (criterion 19). The failure comment names the failed step, so a person sees the reason
+   without opening the log. Each step that can fail sets its own name as the current step
+   before it starts. The Claude error kind comes from a fixed list; Claude's own error text is
+   never posted. The field names of Claude Code's JSON output (`num_turns`, `duration_ms`,
+   `modelUsage`) are checked in the first real run after this change.

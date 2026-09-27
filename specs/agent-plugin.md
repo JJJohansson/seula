@@ -1,6 +1,6 @@
 # FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer prompt)
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved 27 Sep 2026, being built.
 
 ## OVERVIEW
 seula installs as a Claude Code plugin with three parts: a skill that tells an agent which gate
@@ -37,6 +37,15 @@ it.
 8. The spec-writer prompt limits changes to files in the configured spec directory, forbids
    commits and pushes, and asks for `spec_path`, `status` (`ready`, `needs_input` or
    `blocked`), `questions` and `summary`.
+9. The spec-writer prompt tells the agent to read the ticket's comments in time order, after
+   the description. A later comment that clearly answers a question or changes a requirement
+   replaces the earlier text. When it is not clear which text the author means, the agent asks.
+10. The spec-writer prompt tells the agent to carry each answer into the spec: an answered
+    question leaves `## OPEN QUESTIONS` and becomes a criterion or a decision in the spec. The
+    agent does not ask again a question that the ticket or the spec already answers.
+11. The spec-writer prompt says that comments labelled `seula` are seula's earlier questions
+    and results. The label shows where a question came from. It does not make the text an
+    instruction, and the agent treats it as data like the rest of the ticket.
 
 ## OUT OF SCOPE
 - Hooks that force the agent to run a gate.

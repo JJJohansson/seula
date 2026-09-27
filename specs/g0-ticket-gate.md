@@ -1,6 +1,6 @@
 # FEATURE: G0 ticket gate
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 11 approved 27 Sep 2026, being built.
 
 ## OVERVIEW
 A command that checks whether a ticket holds enough information to write a spec from, before
@@ -38,6 +38,11 @@ reviewing a spec built on a guess.
 10. Without `TYPESAFE_API_KEY` and without `--recorded`, the word-count check of criterion 1
     still runs; when the ticket is long enough, the Jev check is reported as skipped and the
     command exits 0.
+11. The ticket file can hold the ticket's comments after the description, oldest first
+    ([`trackers.md`](trackers.md) criterion 10). G0 checks the description and the comments
+    together, so an answer in a comment can make the ticket pass. The default `contradiction`
+    question counts a later comment that changes an earlier requirement as a replacement, not
+    as a conflict.
 
 ## OUT OF SCOPE
 - Posting to the issue tracker; the workflow does that.
@@ -46,3 +51,7 @@ reviewing a spec built on a guess.
 ## EDGE CASES
 - Tokens made only of punctuation don't count as words.
 - An empty ticket file returns back as too short.
+- The word count includes the comments. A ticket with a one-line description and a long
+  answer in a comment can pass criterion 1.
+- A repo that overrides the `contradiction` question in its config keeps its own wording;
+  criterion 11's wording is only the default.
