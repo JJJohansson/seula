@@ -1,6 +1,6 @@
 # FEATURE: Issue tracker adapters (Jira, GitHub Issues)
 
-> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. Credential errors: the change to criterion 9 approved and built 27 Sep 2026. **Board sync: the changes to criteria 1 and 6, and criteria 14–15, drafted 28 Sep 2026, not approved** (see [`board-sync.md`](board-sync.md)).
+> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. Credential errors: the change to criterion 9 approved and built 27 Sep 2026. **Board sync: the changes to criteria 1 and 6, and criteria 14–15, approved 28 Sep 2026, not built** (see [`board-sync.md`](board-sync.md)).
 
 ## OVERVIEW
 seula reads tickets from, and reports back to, an issue tracker through a small adapter. Two

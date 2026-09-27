@@ -1,6 +1,6 @@
 # FEATURE: Board sync (the ticket follows the spec pull request)
 
-> **Status:** Idea. Drafted 28 Sep 2026 with Janne, not approved.
+> **Status:** Approved (28 Sep 2026). Not yet built.
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `board-sync.yml`, that keeps a ticket's state in step with
