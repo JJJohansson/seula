@@ -45,7 +45,7 @@ end in `.ts`.
   tracker or app.
 - No runtime dependencies.
 - Exit codes are part of the contract: 0 pass or skipped, 1 back, 2 unsure, 3 loop limit,
-  64 usage, 70 internal error.
+  64 usage, 70 internal error, 77 a service refused a credential.
 - Tests never call the real Jev API; use `FakeModel` or a recording.
 - Agent-facing text (skill, agent, prompts, Jev questions) uses short sentences with one
   instruction each, in the style of the `asd-ste100` skill.

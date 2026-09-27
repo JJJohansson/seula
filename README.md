@@ -99,6 +99,7 @@ Feedback:
 | 3 | Stop: the gate sent the work back too many times; a person steps in |
 | 64 | Usage error |
 | 70 | Internal error (for example the Jev API failed); nothing was decided |
+| 77 | A service refused a credential (HTTP 401 or 403); the message names it, never its value |
 
 ## Claude Code plugin
 

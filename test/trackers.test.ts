@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_STATES } from "../src/config.ts";
+import { CredentialError } from "../src/errors.ts";
 import { GitHubTracker } from "../src/trackers/github.ts";
 import { makeTracker } from "../src/trackers/index.ts";
 import { JiraTracker } from "../src/trackers/jira.ts";
@@ -112,10 +113,58 @@ test("trackers criteria 8-9: credentials come from the environment; failures are
   await assert.rejects(new JiraTracker({}, DEFAULT_STATES.jira).comment("MP-7", "x"), TicketError);
   await assert.rejects(new JiraTracker({ ...JIRA_ENV, JIRA_BASE_URL: "http://acme.test" }, DEFAULT_STATES.jira).comment("MP-7", "x"), /https/);
   await assert.rejects(new GitHubTracker({ GITHUB_TOKEN: "x" }, DEFAULT_STATES.github, "l").comment("1", "x"), /GITHUB_REPOSITORY/);
-  const f = fakeFetch({ "POST /issues/1/comments": [403, { message: "Resource not accessible" }] });
+  const f = fakeFetch({ "POST /issues/1/comments": [500, { message: "Server error" }] });
   await assert.rejects(new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", f.impl).comment("1", "x"), (e) => {
     assert.ok(e instanceof TrackerApiError);
-    assert.match(e.message, /HTTP 403: .*Resource not accessible/);
+    assert.match(e.message, /HTTP 500: .*Server error/);
+    return true;
+  });
+});
+
+test("trackers criterion 9: Jira answering 401 is a refused credential that names JIRA_EMAIL and JIRA_API_TOKEN", async () => {
+  const f = fakeFetch({ "POST /rest/api/2/issue/MP-7/comment": [401, { message: "Unauthorized" }] });
+  await assert.rejects(new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, f.impl).comment("MP-7", "x"), (e) => {
+    assert.ok(e instanceof CredentialError);
+    assert.match(e.message, /JIRA_EMAIL and JIRA_API_TOKEN/);
+    assert.match(e.message, /HTTP 401/);
+    assert.match(e.message, /expired, revoked, or missing a permission/);
+    return true;
+  });
+});
+
+test("trackers criterion 9: GitHub answering 403 is a refused credential that names GITHUB_TOKEN", async () => {
+  const f = fakeFetch({ "POST /issues/1/comments": [403, { message: "Resource not accessible" }] });
+  await assert.rejects(new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", f.impl).comment("1", "x"), (e) => {
+    assert.ok(e instanceof CredentialError);
+    assert.match(e.message, /GITHUB_TOKEN/);
+    assert.match(e.message, /HTTP 403/);
+    return true;
+  });
+});
+
+test("trackers edge case: a GitHub rate-limit 403 is an API error, not a refused credential", async () => {
+  const limits: Record<string, string>[] = [{ "x-ratelimit-remaining": "0" }, { "retry-after": "60" }];
+  for (const headers of limits) {
+    const f = fakeFetch({ "POST /issues/1/comments": [403, { message: "rate limit" }, headers] });
+    await assert.rejects(new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", f.impl).comment("1", "x"), (e) => {
+      assert.ok(e instanceof TrackerApiError);
+      assert.ok(!(e instanceof CredentialError));
+      return true;
+    });
+  }
+});
+
+test("trackers criterion 9: a refused credential's message never holds its value", async () => {
+  const jira = fakeFetch({ "POST /rest/api/2/issue/MP-7/comment": [401, { message: "bad t0k3n for me@acme.test" }] });
+  await assert.rejects(new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira, jira.impl).comment("MP-7", "x"), (e) => {
+    assert.ok(e instanceof Error);
+    assert.ok(!e.message.includes("t0k3n"));
+    return true;
+  });
+  const gh = fakeFetch({ "POST /issues/1/comments": [401, { message: "bad ghs_x" }] });
+  await assert.rejects(new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l", gh.impl).comment("1", "x"), (e) => {
+    assert.ok(e instanceof Error);
+    assert.ok(!e.message.includes("ghs_x"));
     return true;
   });
 });

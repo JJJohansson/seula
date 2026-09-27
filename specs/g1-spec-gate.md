@@ -1,6 +1,6 @@
 # FEATURE: G1 spec gate
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Credential errors: criterion 17 approved 27 Sep 2026, not built.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Credential errors: criterion 17 approved and built 27 Sep 2026.
 
 ## OVERVIEW
 A command that checks one feature spec before it moves on to planning: first deterministic

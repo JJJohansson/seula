@@ -8,6 +8,8 @@ export interface GitHubEnv {
   GITHUB_API_URL?: string;
 }
 
+/** Named in the error when GitHub refuses it (criterion 9). */
+const CREDENTIAL = "GITHUB_TOKEN";
 const LABEL_COLOR = "5319e7";
 const PER_PAGE = 100;
 
@@ -54,7 +56,7 @@ export class GitHubTracker implements Tracker {
     const path = `/issues/${key}/comments?per_page=${PER_PAGE}`;
     const read = async (page: number) => {
       const res = await this.api(page === 1 ? path : `${path}&page=${page}`, { method: "GET" });
-      await failIfNotOk(res, `GitHub comments of #${key}`);
+      await failIfNotOk(res, `GitHub comments of #${key}`, CREDENTIAL);
       const items = (await res.json()) as { user?: { login?: string }; created_at?: string; body?: unknown }[];
       return { res, items: Array.isArray(items) ? items : [] };
     };
@@ -78,7 +80,7 @@ export class GitHubTracker implements Tracker {
   async comment(key: string, text: string): Promise<void> {
     this.checkKey(key);
     const res = await this.api(`/issues/${key}/comments`, { method: "POST", body: JSON.stringify({ body: text }) });
-    await failIfNotOk(res, `GitHub comment on #${key}`);
+    await failIfNotOk(res, `GitHub comment on #${key}`, CREDENTIAL);
   }
 
   async move(key: string, state: TrackerState): Promise<void> {
@@ -87,13 +89,13 @@ export class GitHubTracker implements Tracker {
     const remove = [...Object.values(this.states), this.triggerLabel].filter((l) => l !== target);
     for (const label of remove) {
       const res = await this.api(`/issues/${key}/labels/${encodeURIComponent(label)}`, { method: "DELETE" });
-      if (res.status !== 404) await failIfNotOk(res, `GitHub remove label "${label}" from #${key}`);
+      if (res.status !== 404) await failIfNotOk(res, `GitHub remove label "${label}" from #${key}`, CREDENTIAL);
     }
     // Create the label if it doesn't exist yet (422 means it already does).
     const create = await this.api("/labels", { method: "POST", body: JSON.stringify({ name: target, color: LABEL_COLOR }) });
-    if (create.status !== 422) await failIfNotOk(create, `GitHub create label "${target}"`);
+    if (create.status !== 422) await failIfNotOk(create, `GitHub create label "${target}"`, CREDENTIAL);
     const add = await this.api(`/issues/${key}/labels`, { method: "POST", body: JSON.stringify({ labels: [target] }) });
-    await failIfNotOk(add, `GitHub add label "${target}" to #${key}`);
+    await failIfNotOk(add, `GitHub add label "${target}" to #${key}`, CREDENTIAL);
   }
 
   private checkKey(key: string): void {

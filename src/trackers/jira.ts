@@ -8,6 +8,9 @@ export interface JiraEnv {
   JIRA_API_TOKEN?: string;
 }
 
+/** Named in the error when Jira refuses it (criterion 9). */
+const CREDENTIAL = "JIRA_EMAIL and JIRA_API_TOKEN";
+
 export class JiraTracker implements Tracker {
   readonly type = "jira" as const;
   readonly keyPattern = /^[A-Z][A-Z0-9]+-[0-9]+$/;
@@ -38,7 +41,7 @@ export class JiraTracker implements Tracker {
   async comments(key: string, max: number): Promise<CommentPage> {
     this.checkKey(key);
     const res = await this.api(`/rest/api/2/issue/${key}/comment?orderBy=-created&maxResults=${max}`, { method: "GET" });
-    await failIfNotOk(res, `Jira comments of ${key}`);
+    await failIfNotOk(res, `Jira comments of ${key}`, CREDENTIAL);
     const data = (await res.json()) as { total?: number; comments?: { author?: { displayName?: string }; created?: string; body?: unknown }[] };
     const newestFirst = (data.comments ?? []).slice(0, max);
     const comments = newestFirst.reverse().map((x) => ticketComment(x.author?.displayName ?? "", x.created ?? "", typeof x.body === "string" ? x.body : ""));
@@ -48,19 +51,19 @@ export class JiraTracker implements Tracker {
   async comment(key: string, text: string): Promise<void> {
     this.checkKey(key);
     const res = await this.api(`/rest/api/2/issue/${key}/comment`, { method: "POST", body: JSON.stringify({ body: text }) });
-    await failIfNotOk(res, `Jira comment on ${key}`);
+    await failIfNotOk(res, `Jira comment on ${key}`, CREDENTIAL);
   }
 
   async move(key: string, state: TrackerState): Promise<void> {
     this.checkKey(key);
     const target = this.states[state];
     const res = await this.api(`/rest/api/2/issue/${key}/transitions`, { method: "GET" });
-    await failIfNotOk(res, `Jira transitions for ${key}`);
+    await failIfNotOk(res, `Jira transitions for ${key}`, CREDENTIAL);
     const data = (await res.json()) as { transitions?: { id: string; to?: { name?: string } }[] };
     const t = data.transitions?.find((x) => x.to?.name?.toLowerCase() === target.toLowerCase());
     if (!t) throw new TrackerApiError(`No Jira transition to "${target}" from ${key}'s current status.`);
     const post = await this.api(`/rest/api/2/issue/${key}/transitions`, { method: "POST", body: JSON.stringify({ transition: { id: t.id } }) });
-    await failIfNotOk(post, `Jira move of ${key} to "${target}"`);
+    await failIfNotOk(post, `Jira move of ${key} to "${target}"`, CREDENTIAL);
   }
 
   private checkKey(key: string): void {

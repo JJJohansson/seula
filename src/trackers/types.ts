@@ -1,5 +1,6 @@
 /** The one interface every issue tracker adapter implements (specs/trackers.md criterion 1). */
 import type { TrackerState, TrackerType } from "../config.ts";
+import { CredentialError } from "../errors.ts";
 
 export interface Ticket {
   /** The tracker's own id: "PROJ-42" for Jira, "42" for a GitHub issue. */
@@ -62,8 +63,19 @@ export function httpsOrEmpty(value: unknown): string {
   }
 }
 
-export async function failIfNotOk(res: Response, what: string): Promise<void> {
+/**
+ * Throws for a failed response. A 401 or 403 is a refused credential (trackers criterion 9): its
+ * message names `credential` and leaves out the response body, which can echo the value. A 403
+ * for a rate limit is an ordinary API error.
+ */
+export async function failIfNotOk(res: Response, what: string, credential: string): Promise<void> {
   if (res.ok) return;
+  const rateLimited = res.headers.get("x-ratelimit-remaining") === "0" || res.headers.has("retry-after");
+  if (res.status === 401 || (res.status === 403 && !rateLimited)) {
+    throw new CredentialError(
+      `${what} failed: the tracker refused ${credential} (HTTP ${res.status}). It may be expired, revoked, or missing a permission.`,
+    );
+  }
   const detail = (await res.text()).slice(0, 300);
   throw new TrackerApiError(`${what} failed: HTTP ${res.status}: ${detail}`);
 }

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -208,4 +210,60 @@ test("run-files criterion 10: update --claude-result stores the breakdown, and a
 
   // Both would count one run's cost twice.
   assert.equal(run(["update", "--run", "WEB-6", "--claude-result", "claude.json", "--claude-usd", "0.5"], d).code, 64);
+});
+
+/** Runs the CLI against a local server that refuses every request with `status`. */
+async function runAgainstRefusal(status: number, args: string[], cwd: string, extraEnv: (url: string) => Record<string, string>) {
+  const server = createServer((_req, res) => {
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify({ message: "refused" }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  const url = `http://127.0.0.1:${port}`;
+  const env = { ...process.env };
+  for (const key of ["TYPESAFE_API_KEY", "JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "GITHUB_TOKEN"]) delete env[key];
+  try {
+    const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...env, ...extraEnv(url) } });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    return { code, stderr };
+  } finally {
+    server.close();
+  }
+}
+
+function jevAt(d: string, url: string): Record<string, string> {
+  writeFileSync(join(d, "seula.config.json"), JSON.stringify({ jev: { endpoint: `${url}/v1/systemone` } }));
+  return { TYPESAFE_API_KEY: "sekret-key" };
+}
+
+test("g0 criterion 12: gate g0 exits 77 when Jev refuses the key", async () => {
+  const d = workdir();
+  writeFileSync(join(d, "ticket.md"), "# WEB-9: Export\n\nUsers need to export the shopping list as a CSV file from the list page.\n");
+  const r = await runAgainstRefusal(401, ["gate", "g0", "--ticket", "ticket.md"], d, (url) => jevAt(d, url));
+  assert.equal(r.code, 77);
+  assert.match(r.stderr, /TYPESAFE_API_KEY/);
+  assert.ok(!r.stderr.includes("sekret-key"));
+});
+
+test("g1 criterion 17: gate g1 exits 77 when Jev refuses the key", async () => {
+  const d = workdir();
+  const r = await runAgainstRefusal(403, ["gate", "g1", "good.md"], d, (url) => jevAt(d, url));
+  assert.equal(r.code, 77);
+  assert.match(r.stderr, /TYPESAFE_API_KEY/);
+});
+
+test("trackers criterion 9: a tracker command exits 77 when the tracker refuses the credential", async () => {
+  const d = workdir();
+  writeFileSync(join(d, "c.md"), "Hello");
+  const r = await runAgainstRefusal(401, ["tracker", "comment", "--tracker", "github", "--key", "1", "--text-file", "c.md"], d, (url) => ({
+    GITHUB_TOKEN: "ghs_sekret",
+    GITHUB_REPOSITORY: "acme/app",
+    GITHUB_API_URL: url,
+  }));
+  assert.equal(r.code, 77);
+  assert.match(r.stderr, /GITHUB_TOKEN/);
+  assert.ok(!r.stderr.includes("ghs_sekret"));
 });

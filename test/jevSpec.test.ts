@@ -3,6 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { CredentialError } from "../src/errors.ts";
 import { criterionRequest, feedbackLines, jevSpec, specContext } from "../src/gates/jevSpec.ts";
 import { JevHttpModel, RecordedModel, RecordingModel, requestKey } from "../src/jev/model.ts";
 import { combine, goodness, route } from "../src/routing.ts";
@@ -96,8 +97,28 @@ test("the HTTP model sends noul questions and reads noul answers", async () => {
   assert.deepEqual(body.questions.testable, { type: "noul", instructions: "Testable?" });
 });
 
-test("the HTTP model explains an auth failure", async () => {
-  const fakeFetch = (async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
-  const m = new JevHttpModel("bad", config().jev, fakeFetch);
-  await assert.rejects(m.evaluate({ state: "x", questions: { q: { instructions: "?" } } }), /401 \(check TYPESAFE_API_KEY\)/);
+test("g1 criterion 17: Jev answering 401 or 403 is a refused credential that names TYPESAFE_API_KEY", async () => {
+  for (const status of [401, 403]) {
+    const fakeFetch = (async () => new Response("unauthorized sekret-key", { status })) as unknown as typeof fetch;
+    const m = new JevHttpModel("sekret-key", config().jev, fakeFetch);
+    await assert.rejects(m.evaluate({ state: "x", questions: { q: { instructions: "?" } } }), (e) => {
+      assert.ok(e instanceof CredentialError);
+      assert.match(e.message, /TYPESAFE_API_KEY/);
+      assert.match(e.message, new RegExp(`HTTP ${status}`));
+      assert.match(e.message, /expired or revoked/);
+      assert.ok(!e.message.includes("sekret-key"));
+      return true;
+    });
+  }
+});
+
+test("g1 edge case: any other Jev HTTP error stays an internal error", async () => {
+  const fakeFetch = (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch;
+  const m = new JevHttpModel("k", config().jev, fakeFetch);
+  await assert.rejects(m.evaluate({ state: "x", questions: { q: { instructions: "?" } } }), (e) => {
+    assert.ok(e instanceof Error);
+    assert.ok(!(e instanceof CredentialError));
+    assert.match(e.message, /HTTP 500/);
+    return true;
+  });
 });

@@ -41,6 +41,7 @@ Every gate command uses the same exit codes, so a workflow or an agent can act o
 | 3 | Loop limit reached | A person steps in |
 | 64 | Usage error | Fix the command |
 | 70 | Internal error (for example the Jev API failed) | Nothing was decided; retry or investigate |
+| 77 | A service refused a credential (HTTP 401 or 403); the message names it | Replace the expired or revoked secret, then run again |
 
 ## G0 in detail
 

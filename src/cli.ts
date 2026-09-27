@@ -4,6 +4,7 @@ import { dirname, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { calibrate, calibrationReport, type LabelsFile } from "./calibrate.ts";
 import { type SeulaConfig, type TrackerState, type TrackerType, loadConfig } from "./config.ts";
+import { CredentialError } from "./errors.ts";
 import { type CheckSpecResult, checkSpec } from "./gates/checkSpec.ts";
 import { type JevSpecResult, feedbackLines, jevSpec } from "./gates/jevSpec.ts";
 import { type JevTicketResult, jevTicket, wordCount } from "./gates/jevTicket.ts";
@@ -59,11 +60,13 @@ Exit codes:
   0 pass or skipped · 1 back: rework and run again · 2 unsure: a reviewer or person decides
   3 stop: the loop limit is reached, a person must step in · 64 usage error
   70 internal error (for example the Jev API failed): nothing was decided
+  77 a service refused a credential (HTTP 401 or 403): the message names it
 `;
 
 const EXIT: Record<Decision | "skipped", number> = { pass: 0, skipped: 0, back: 1, review: 2 };
 const EXIT_BLOCKED = 3;
 const EXIT_ERROR = 70;
+const EXIT_CREDENTIAL = 77;
 
 interface Options {
   run?: string;
@@ -523,6 +526,9 @@ main(process.argv.slice(2)).then(
     if (err instanceof UsageError || err instanceof TicketError) {
       process.stderr.write(`${err.message}\n`);
       process.exitCode = 64;
+    } else if (err instanceof CredentialError) {
+      process.stderr.write(`seula: ${err.message}\n`);
+      process.exitCode = EXIT_CREDENTIAL;
     } else {
       process.stderr.write(`seula: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exitCode = EXIT_ERROR;

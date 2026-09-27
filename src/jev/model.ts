@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { JevConfig } from "../config.ts";
+import { CredentialError } from "../errors.ts";
 
 export interface NoulSpec {
   instructions: string;
@@ -62,9 +63,13 @@ export class JevHttpModel implements DecisionModel {
         await sleep(delays[attempt] ?? 1000);
         continue;
       }
+      if (res.status === 401 || res.status === 403) {
+        // g1 criterion 17: name the key, never its value (the body can echo it).
+        throw new CredentialError(`Jev refused TYPESAFE_API_KEY (HTTP ${res.status}). The key may be expired or revoked.`);
+      }
       if (!res.ok) {
         const detail = (await res.text()).slice(0, 300);
-        throw new Error(`Jev request failed: HTTP ${res.status}${res.status === 401 ? " (check TYPESAFE_API_KEY)" : ""}: ${detail}`);
+        throw new Error(`Jev request failed: HTTP ${res.status}: ${detail}`);
       }
       const json = (await res.json()) as {
         model?: string;
