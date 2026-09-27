@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved and built 27 Sep 2026; the Claude 401/403 case (`api_error_status`) is checked in the first real run.
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved and built 27 Sep 2026; the Claude 401/403 case (`api_error_status`) is checked in the first real run. **Criterion 16 and the outputs corrected and approved 28 Sep 2026:** they now name the branch as the code does, after the run id in lowercase, not the ticket key.
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -20,7 +20,7 @@ approving it and merging stay with a person.
   `SEULA_GH_TOKEN`, optional `TYPESAFE_API_KEY`, and for Jira `JIRA_BASE_URL`, `JIRA_EMAIL`,
   `JIRA_API_TOKEN`. The caller maps the repo's secrets onto these names (see
   [`adoption.md`](adoption.md), criterion 3).
-- Outputs: a branch `seula/<ticket key>` (criterion 16) with the spec change, the ticket file
+- Outputs: a branch `seula/<run id in lowercase>` (criterion 16) with the spec change, the ticket file
   (the description and the comments) and the run file; a pull request; a comment and a state
   change on the ticket.
 
@@ -73,10 +73,13 @@ approving it and merging stay with a person.
     criterion 8. When it sends the spec back or is unsure, its feedback goes on the ticket as
     well as in the pull request.
 16. Every run for the same ticket uses one branch and one pull request: the ticket's open
-    pull request branch if it has one, else `seula/<ticket key>`. When the ticket has an open
-    pull request and an earlier run added a spec on its branch that is not on the base branch,
-    the agent gets that spec and is told to update it, not to write another. A
-    `seula/<ticket key>` branch without an open pull request (closed or merged) is not read:
+    pull request branch if it has one, else `seula/` and the run id in lowercase
+    (`seula/meal-4` for Jira `MEAL-4`, `seula/gh-42` for GitHub issue 42). The ticket's open
+    pull request branch is `seula/<run id>`, or `seula/<run id>-<spec name>` from an older
+    seula. When the ticket has an open pull request and an earlier run added a spec on its
+    branch that is not on the base branch, the agent gets that spec and is told to update it,
+    not to write another. A
+    `seula/<run id>` branch without an open pull request (closed or merged) is not read:
     the run starts from the base branch and replaces that branch. If the agent still returns
     another file, the earlier draft is removed, so the pull request holds one spec for the
     ticket.
