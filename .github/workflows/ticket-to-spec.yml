@@ -75,6 +75,7 @@ jobs:
           [[ -z "$SDD_SKILL_REPO" || "$SDD_SKILL_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "::error::Invalid sdd-skill-repo"; exit 1; }
 
       - name: Check out the repo
+        id: checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           # A personal token, so the branch and pull request made below trigger CI
@@ -131,7 +132,11 @@ jobs:
         run: |
           # Answers in comments reach G0 and the agent. The text goes only into the ticket file,
           # quoted (criterion 6). A failure here is a technical failure (criterion 17).
-          $SEULA tracker comments --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --append "$TICKET_FILE"
+          code=0
+          $SEULA tracker comments --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --append "$TICKET_FILE" || code=$?
+          # Criterion 27: the failure report names the credential the tracker refused.
+          if [ "$code" -eq 77 ]; then echo "SEULA_REFUSED=tracker" >> "$GITHUB_ENV"; fi
+          exit "$code"
 
       - name: G0 · is the ticket ready? (criterion 3)
         id: g0
@@ -145,6 +150,8 @@ jobs:
           set -e
           cat g0.json
           $SEULA update --run "$RUN_ID" --ticket-url "$(jq -r .url ticket.json)" || echo "::warning::Ticket link not stored"
+          # Criterion 27: the failure report names the key that Jev refused.
+          if [ "$code" -eq 77 ]; then echo "SEULA_REFUSED=jev" >> "$GITHUB_ENV"; fi
           if [ "$code" -ge 64 ]; then echo "::error::seula failed (exit $code)"; exit 1; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
@@ -160,7 +167,11 @@ jobs:
           jq -r '"seula · G0: this ticket needs input before a spec can be written.\n\n" + (((.asks // []) + (.notes // [])) | map("- " + .) | join("\n"))' g0.json > comment.md
           # Criterion 19: say how to answer.
           printf '\n%s\n' "The ticket's author can answer in a comment, then start seula again." >> comment.md
-          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file comment.md
+          code=0
+          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file comment.md || code=$?
+          # Criterion 27: the failure report names the credential the tracker refused.
+          if [ "$code" -eq 77 ]; then echo "SEULA_REFUSED=tracker" >> "$GITHUB_ENV"; fi
+          if [ "$code" -ne 0 ]; then exit "$code"; fi
           $SEULA tracker move --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --state needsInput ||
             echo "::warning::Could not set the ticket to needsInput"
 
@@ -291,7 +302,12 @@ jobs:
           set -e
           # back (1), unsure (2) and the loop limit (3) are results. An error leaves the agent's
           # skipped G1 as the last result, so criterion 8 keeps the pull request a draft.
-          if [ "$code" -ge 64 ]; then echo "::warning::G1 could not run (exit $code); the pull request stays a draft."; fi
+          if [ "$code" -eq 77 ]; then
+            # Criterion 27 edge case: not a failure, so the warning names the key itself.
+            echo "::warning::Jev refused TYPESAFE_API_KEY (the repository secret SEULA_TYPESAFE_API_KEY), so G1 could not run; the pull request stays a draft."
+          elif [ "$code" -ge 64 ]; then
+            echo "::warning::G1 could not run (exit $code); the pull request stays a draft."
+          fi
 
       - name: Read the result (criteria 8, 11)
         id: result
@@ -315,6 +331,9 @@ jobs:
           if [ "$CLAUDE_EXIT" != "0" ] || [ "$is_error" = "true" ] || [[ "$subtype" == error* ]]; then
             if [ "$subtype" = "error_max_turns" ]; then
               reason=turn_cap
+            elif jq -e '.api_error_status == 401 or .api_error_status == 403' claude.json > /dev/null 2>&1; then
+              # Criterion 27: Anthropic refused the key.
+              reason=claude_key
             elif jq -e '((.result // "") | tostring | startswith("API Error")) or has("api_error_status")' claude.json > /dev/null 2>&1; then
               reason=claude_api
             else
@@ -512,6 +531,8 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           # Why it failed: the outcome of each step that can fail, and the result's reason code.
+          # SEULA_REFUSED comes from the job's environment (criterion 27).
+          OUT_CHECKOUT: ${{ steps.checkout.outcome }}
           OUT_COMMENTS: ${{ steps.comments.outcome }}
           OUT_G0: ${{ steps.g0.outcome }}
           OUT_ASK: ${{ steps.ask.outcome }}
@@ -528,12 +549,9 @@ jobs:
           # Criterion 17: a technical failure says so and leaves the ticket's state alone. The
           # comment is fixed text, a step's name and the run link, never the agent's output
           # (criterion 13), so it is safe to post after the secret check stopped the run.
-          if [ -z "${TICKET_KEY:-}" ]; then
-            echo "::warning::No ticket key, so the failure can't be reported on the ticket."
-            exit 0
-          fi
           # The steps that can fail, in workflow order: the first that failed is the reason.
           steps=(
+            "OUT_CHECKOUT|Check out the repo"
             "OUT_COMMENTS|Read the ticket's comments"
             "OUT_G0|G0 · is the ticket ready?"
             "OUT_ASK|Ask on the ticket"
@@ -546,23 +564,48 @@ jobs:
             "OUT_PR|Commit and open the pull request"
             "OUT_REPORT|Report on the ticket"
           )
+          # Criterion 27: a refused credential is named by its workflow and repository secret
+          # names, never by its value.
+          admin="It may be expired or revoked. A repository admin can replace the secret."
           reason=""
+          first=""
           for entry in "${steps[@]}"; do
             var="${entry%%|*}"
             name="${entry#*|}"
             case "${!var:-}" in
-              failure) reason="Failed at the step \"$name\"."; break ;;
+              failure) reason="Failed at the step \"$name\"."; first="$var"; break ;;
               cancelled) reason="Cancelled at the step \"$name\", for example by the run's time limit."; break ;;
             esac
           done
+          if [ "$first" = "OUT_CHECKOUT" ]; then
+            reason="$reason Its only credential is \`SEULA_GH_TOKEN\`. $admin"
+          fi
+          case "${SEULA_REFUSED:-}" in
+            tracker)
+              if [ "$SEULA_TRACKER" = "jira" ]; then
+                reason="$reason Jira refused \`JIRA_EMAIL\` and \`JIRA_API_TOKEN\` (repository secrets of the same names). $admin"
+              else
+                reason="$reason GitHub refused \`SEULA_GH_TOKEN\` (the repository secret of the same name). $admin"
+              fi
+              ;;
+            jev) reason="$reason Jev refused \`TYPESAFE_API_KEY\` (the repository secret \`SEULA_TYPESAFE_API_KEY\`). $admin" ;;
+          esac
           if [ -z "$reason" ]; then
             case "${RESULT_REASON:-}" in
               turn_cap) reason="Claude reached its turn limit." ;;
+              claude_key) reason="Anthropic refused \`ANTHROPIC_API_KEY\` (the repository secret \`SEULA_ANTHROPIC_API_KEY\`). $admin" ;;
               claude_api) reason="Claude stopped with an API error." ;;
               claude_other) reason="Claude stopped with an error." ;;
               no_spec) reason="The agent returned no valid spec file." ;;
               *) reason="Not known. The run's log has the details." ;;
             esac
+          fi
+          # Criterion 28: the reason goes on the run itself, also when the ticket can't be reached.
+          echo "::error::seula failed to run. $reason"
+          printf '## seula failed to run\n\n%s\n' "$reason" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          if [ -z "${TICKET_KEY:-}" ]; then
+            echo "::warning::No ticket key, so the failure can't be reported on the ticket."
+            exit 0
           fi
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           {

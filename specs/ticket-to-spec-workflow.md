@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved 27 Sep 2026, not built.
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved and built 27 Sep 2026; the Claude 401/403 case (`api_error_status`) is checked in the first real run.
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker

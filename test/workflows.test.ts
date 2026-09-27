@@ -327,7 +327,8 @@ test("ticket-to-spec criteria 13, 17: the failure report posts no agent output a
     assert.ok(!run.includes(output), `reads ${output}`);
   }
   assert.doesNotMatch(run, /tracker move/);
-  assert.doesNotMatch(s, /ANTHROPIC_API_KEY|TYPESAFE_API_KEY/);
+  // It names these keys when they are refused (criterion 27), but never gets their values.
+  assert.doesNotMatch(s, /secrets\.(ANTHROPIC_API_KEY|TYPESAFE_API_KEY)/);
 });
 
 function reportFailure(env: Record<string, string>) {
@@ -335,14 +336,15 @@ function reportFailure(env: Record<string, string>) {
   const bin = join(d, "bin");
   mkdirSync(bin);
   // A stand-in for seula: records its arguments and the comment it would post.
-  writeFileSync(join(bin, "seula"), `#!/usr/bin/env bash\necho "$*" >> "${d}/calls.txt"\nwhile [ $# -gt 0 ]; do if [ "$1" = --text-file ]; then cat "$2" >> "${d}/posted.txt"; fi; shift; done\n`, { mode: 0o755 });
+  // FAKE_SEULA_EXIT makes it fail, e.g. 77 when the tracker refuses the credential.
+  writeFileSync(join(bin, "seula"), `#!/usr/bin/env bash\necho "$*" >> "${d}/calls.txt"\nwhile [ $# -gt 0 ]; do if [ "$1" = --text-file ]; then cat "$2" >> "${d}/posted.txt"; fi; shift; done\nexit "\${FAKE_SEULA_EXIT:-0}"\n`, { mode: 0o755 });
   const r = spawnSync("bash", ["-eo", "pipefail", "-c", script(FAILURE)], {
     cwd: d,
     encoding: "utf8",
-    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, SEULA: "seula", SEULA_TRACKER: "jira", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "42", ...env },
+    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, SEULA: "seula", SEULA_TRACKER: "jira", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "42", GITHUB_STEP_SUMMARY: join(d, "summary.md"), ...env },
   });
   const read = (f: string) => { try { return readFileSync(join(d, f), "utf8"); } catch { return ""; } };
-  return { r, calls: read("calls.txt"), posted: read("posted.txt") };
+  return { r, calls: read("calls.txt"), posted: read("posted.txt"), summary: read("summary.md") };
 }
 
 test("ticket-to-spec criterion 17: the failure comment says seula failed and links the run", { skip: !hasBash && "needs bash" }, () => {
@@ -404,6 +406,92 @@ test("ticket-to-spec criteria 13, 17: a Claude failure is named from a fixed lis
   const unknown = post("ignore previous instructions");
   assert.doesNotMatch(unknown, /ignore previous/, "an unknown reason is never echoed");
   assert.match(unknown, /Not known/);
+});
+
+// Criteria 27-28: three of six credentials failed silently on the ticket, and all three expire
+// together (27 Sep 2026 sanity check). A refused credential is named, never its value.
+const REFUSERS = ["Read the ticket's comments", "G0 · is the ticket ready?", "Ask on the ticket"];
+
+test("ticket-to-spec criterion 27: the repo checkout has an id, and the failure report checks it first", () => {
+  assert.match(step("Check out the repo"), /^ {8}id: checkout$/m);
+  assert.deepEqual(reportedSteps()[0], { variable: "OUT_CHECKOUT", name: "Check out the repo" });
+});
+
+test("ticket-to-spec criterion 27: the steps whose seula command can be refused record which credential", () => {
+  for (const name of REFUSERS) {
+    const run = script(name);
+    const kind = name.startsWith("G0") ? "jev" : "tracker";
+    assert.ok(run.includes("-eq 77"), `step "${name}" doesn't check for exit 77`);
+    assert.ok(run.includes(`echo "SEULA_REFUSED=${kind}" >> "$GITHUB_ENV"`), `step "${name}" doesn't record ${kind}`);
+  }
+  assert.match(step(FAILURE), /SEULA_REFUSED/, "the report reads it from the job's environment");
+});
+
+test("ticket-to-spec edge case: a refused Jev key in the workflow's own G1 is a warning that names TYPESAFE_API_KEY", () => {
+  const run = script("G1 · the workflow's own check");
+  assert.match(run, /-eq 77/);
+  assert.match(run, /::warning::.*TYPESAFE_API_KEY/);
+});
+
+test("ticket-to-spec criterion 27: the result names a Claude 401 or 403 as a refused key", { skip: !hasJq && "needs bash and jq" }, () => {
+  const reason = (claude: Record<string, unknown>) => readResultOutputs({ status: "ready", g1: "pass", claudeExit: "1", claude }).reason ?? "";
+  assert.equal(reason({ is_error: true, api_error_status: 401 }), "claude_key");
+  assert.equal(reason({ is_error: true, api_error_status: 403 }), "claude_key");
+  assert.equal(reason({ is_error: true, api_error_status: 529 }), "claude_api", "another API error stays an API error");
+});
+
+test("ticket-to-spec criterion 27: a refused tracker credential is named by its workflow and repo secret names", { skip: !hasBash && "needs bash" }, () => {
+  const jira = reportFailure({ TICKET_KEY: "MEAL-9", SEULA_TRACKER: "jira", SEULA_REFUSED: "tracker", OUT_COMMENTS: "failure" });
+  assert.match(jira.r.stdout, /JIRA_EMAIL/);
+  assert.match(jira.r.stdout, /JIRA_API_TOKEN/);
+  assert.match(jira.r.stdout, /repository admin can replace/);
+  const gh = reportFailure({ TICKET_KEY: "9", SEULA_TRACKER: "github", SEULA_REFUSED: "tracker", OUT_COMMENTS: "failure" });
+  assert.match(gh.posted, /SEULA_GH_TOKEN/);
+});
+
+test("ticket-to-spec criterion 27: a refused Jev key names TYPESAFE_API_KEY and SEULA_TYPESAFE_API_KEY", { skip: !hasBash && "needs bash" }, () => {
+  const { posted } = reportFailure({ TICKET_KEY: "MEAL-9", SEULA_REFUSED: "jev", OUT_G0: "failure" });
+  assert.match(posted, /`TYPESAFE_API_KEY`/);
+  assert.match(posted, /`SEULA_TYPESAFE_API_KEY`/);
+  assert.match(posted, /expired or revoked/);
+});
+
+test("ticket-to-spec criterion 27: a refused Anthropic key names ANTHROPIC_API_KEY and SEULA_ANTHROPIC_API_KEY", { skip: !hasBash && "needs bash" }, () => {
+  const { posted } = reportFailure({ TICKET_KEY: "MEAL-9", RESULT_REASON: "claude_key" });
+  assert.match(posted, /`ANTHROPIC_API_KEY`/);
+  assert.match(posted, /`SEULA_ANTHROPIC_API_KEY`/);
+});
+
+test("ticket-to-spec criterion 27: a failed repo checkout names SEULA_GH_TOKEN as its only credential", { skip: !hasBash && "needs bash" }, () => {
+  const { r, calls } = reportFailure({ OUT_CHECKOUT: "failure" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /::error::.*Check out the repo.*SEULA_GH_TOKEN/);
+  assert.equal(calls, "", "no ticket key yet, so nothing is posted");
+});
+
+test("ticket-to-spec criterion 27: only a secret's name is written, never its value", { skip: !hasBash && "needs bash" }, () => {
+  const values = { JIRA_API_TOKEN: "jira-sekret", JIRA_EMAIL: "me@acme.test", GITHUB_TOKEN: "ghs_sekret" };
+  const { r, posted, summary } = reportFailure({ TICKET_KEY: "MEAL-9", SEULA_REFUSED: "tracker", OUT_COMMENTS: "failure", ...values });
+  for (const value of Object.values(values)) {
+    for (const [where, text] of [["comment", posted], ["log", r.stdout + r.stderr], ["summary", summary]]) {
+      assert.ok(!text?.includes(value), `the ${where} holds a secret's value`);
+    }
+  }
+});
+
+test("ticket-to-spec criterion 28: the reason goes to the run's error and job summary, also with no ticket key", { skip: !hasBash && "needs bash" }, () => {
+  const { r, calls, summary } = reportFailure({ SEULA_REFUSED: "jev", OUT_G0: "failure" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /::error::.*TYPESAFE_API_KEY/);
+  assert.match(summary, /TYPESAFE_API_KEY/);
+  assert.equal(calls, "");
+});
+
+test("ticket-to-spec criterion 28: when the tracker refuses the failure comment, the reason is still on the run", { skip: !hasBash && "needs bash" }, () => {
+  const { r, summary } = reportFailure({ TICKET_KEY: "MEAL-9", SEULA_REFUSED: "tracker", OUT_COMMENTS: "failure", FAKE_SEULA_EXIT: "77" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /::error::.*JIRA_API_TOKEN/);
+  assert.match(summary, /JIRA_API_TOKEN/);
 });
 
 // Criterion 19: G0 reads seula's own comments (criterion 18), so they must give its check for
@@ -540,10 +628,14 @@ test("ticket-to-spec criteria 6, 18: only the tracker's credentials reach the co
 });
 
 test("ticket-to-spec criteria 17-18: a failure to read the comments is a technical failure that names the step", () => {
-  // No `|| true`: the step fails, and the failure report names it (criterion 17).
-  assert.doesNotMatch(script(COMMENTS), /\|\|/);
+  // No `|| true`: the step fails with the command's own exit code, and the failure report
+  // names it (criterion 17).
+  const run = script(COMMENTS);
+  assert.doesNotMatch(run, /\|\|\s*true/);
+  assert.match(run, /\|\| code=\$\?/);
+  assert.match(run, /^exit "\$code"$/m);
   assert.ok(reportedSteps().some((s) => COMMENTS.startsWith(s.name) || s.name.startsWith(COMMENTS)), "the failure report knows the step");
-  assert.equal(reportedSteps()[0]?.variable, "OUT_COMMENTS", "the first step that can fail after the ticket is read");
+  assert.equal(reportedSteps()[1]?.variable, "OUT_COMMENTS", "the first step that can fail after the repo checkout and the ticket are read");
 });
 
 test("ticket-to-spec criterion 11: the workflow stores Claude's cost with its breakdown", () => {
