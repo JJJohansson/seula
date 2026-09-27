@@ -1,9 +1,9 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026.
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, drafted 28 Sep 2026, not approved** (see [`board-sync.md`](board-sync.md)).
 
 ## OVERVIEW
-`npx github:JJJohansson/seula init` sets seula up in any repo: a config file, two short
+`npx github:JJJohansson/seula init` sets seula up in any repo: a config file, three short
 caller workflows that use seula's reusable workflows, and a spec template when the repo has
 none. It never overwrites the repo's own files.
 
@@ -17,8 +17,8 @@ repo decides which of its secrets seula gets.
 - Inputs: `--tracker <jira|github>` (required), `--spec-dir <dir>`, `--design-first`,
   `--seula-ref <ref>`, `--force`.
 - Outputs: `seula.config.json`; `.github/workflows/seula-ticket-to-spec.yml`;
-  `.github/workflows/seula-spec-check.yml`; `.seula/spec-template.md` when needed; a list of
-  next steps.
+  `.github/workflows/seula-spec-check.yml`; `.github/workflows/seula-board-sync.yml`;
+  `.seula/spec-template.md` when needed; a list of next steps.
 
 ## ACCEPTANCE CRITERIA
 1. `seula init --tracker <jira|github>` writes `seula.config.json` with the tracker type, the
@@ -53,11 +53,17 @@ repo decides which of its secrets seula gets.
 11. `docs/setup-jira.md` says that when moving a ticket to the trigger status starts no
     workflow run, the Jira automation's audit log shows why, for example GitHub refusing an
     expired dispatch token. seula can't report this, because no run starts.
-12. `docs/troubleshooting.md` has one entry for each step of `ticket-to-spec.yml`, under the
-    step's name as Actions shows it. Each entry says what the step does, what its failure looks
-    like in Actions and on the ticket, and what to check. The page also covers a move that
-    starts no run (criterion 11) and Anthropic credit that has run out. A test fails when a
-    step of the workflow has no entry.
+12. `docs/troubleshooting.md` has one entry for each step of `ticket-to-spec.yml` and of
+    `board-sync.yml`, under the step's name as Actions shows it. Each entry says what the step
+    does, what its failure looks like in Actions and on the ticket, and what to check. The page
+    also covers a move that starts no run (criterion 11) and Anthropic credit that has run out.
+    A test fails when a step of either workflow has no entry.
+13. It writes `.github/workflows/seula-board-sync.yml`: a caller workflow of at most 30 lines
+    that triggers on `pull_request` events (opened, reopened, synchronize, ready_for_review and
+    closed) and calls seula's `board-sync.yml` at the `--seula-ref` (see
+    [`board-sync.md`](board-sync.md)). It passes only the tracker credentials, each by name:
+    for Jira `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN`; for GitHub none, and the
+    workflow gets `issues: write` permission for its `GITHUB_TOKEN`.
 
 ## OUT OF SCOPE
 - Creating GitHub secrets, Jira automation rules or GitHub labels (the setup guides cover them;
