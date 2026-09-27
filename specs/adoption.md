@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). **Credential errors: criteria 11–12 drafted 27 Sep 2026, not approved.**
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved 27 Sep 2026, not built.
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, two short

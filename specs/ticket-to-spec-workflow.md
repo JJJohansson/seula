@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–26, drafted 27 Sep 2026, not approved. Credential errors: the change to criterion 17 and criteria 27–28 drafted 27 Sep 2026, not approved.**
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved 27 Sep 2026, not built.
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -115,24 +115,11 @@ approving it and merging stay with a person.
     and 15), the unsure criteria under "Needs your judgement", the feedback on the ticket
     (criterion 9) and the loop limit ([`run-files.md`](run-files.md) criterion 5). When the
     current round has no G1 event, its last G1 result is none, and the pull request is a draft.
-23. The workflow doesn't start a new round when nothing is new. Nothing is new when all of
-    these are true: the ticket has an open pull request with a valid run file (criteria 20–21);
-    the last committed round in that file has a G1 result of pass, back or unsure, or of
-    skipped when no Jev key is configured (as in criterion 8); and the ticket's title, its
-    description and its comments that are not labelled `seula` ([`trackers.md`](trackers.md)
-    criterion 11) are the same as in the ticket file on that branch. Then the workflow runs
-    neither G0 nor Claude and commits nothing. It posts one comment: nothing changed on the
-    ticket since round N, the link to the pull request, and that the ticket's author can add a
-    comment with what changed, then start seula again. It sets the ticket to `specReview` when
-    the pull request is ready for review, and to `needsInput` when it is a draft.
-24. `roundWarning` in `seula.config.json` is a whole number, default 3; 0 turns the warning
-    off. From round `roundWarning` on, the comment of criterion 9 has one more line: the round
-    number, and that each round runs Claude again. The warning never stops a run and never
-    changes the ticket's state.
-25. The pull request shows the round number and the current round's gate results. It lists
-    the earlier rounds' gate results under "Earlier rounds (from the run file on `<branch>`)",
-    with the name of the branch that the run file came from. Its cost line gives the total
-    over all rounds and, next to it, the current round's Claude cost.
+23. Moved to [`round-extras.md`](round-extras.md) criterion 1 (skip a ticket with nothing
+    new). The number stays, so later criteria keep theirs.
+24. Moved to [`round-extras.md`](round-extras.md) criterion 2 (the round warning).
+25. The pull request's gate results list only the current round's events, under the round
+    number. Its cost line says that it is the total over all rounds.
 26. Before it commits the run file, the workflow sets the run file's step and waiting-on to the
     state that the round gives the ticket (criterion 9), with `seula update --state`
     ([`run-files.md`](run-files.md) criterion 13). `seula status` then shows the same next
@@ -154,7 +141,8 @@ approving it and merging stay with a person.
 - Building the feature from an approved spec.
 - Merging anything automatically.
 - Gates G2 to G5.
-- A hard stop after a number of rounds. The round warning (criterion 24) only informs.
+- Skipping a ticket with nothing new, the round warning, and earlier rounds in the pull
+  request: see [`round-extras.md`](round-extras.md) (Idea).
 - Recording rounds that don't reach the pull request (a G0 back or a technical failure).
 - Updating a spec that is already on the base branch. The agent isn't told about a merged
   spec, so a run after the merge can write a second spec for the ticket.
@@ -179,26 +167,18 @@ approving it and merging stay with a person.
 - G0 sends back, or the run fails (criterion 17), on a ticket with an open pull request: the
   round commits nothing, so the next round restores the last committed round. Only rounds
   that reach the pull request are counted. After a G0 back the pull request is a draft
-  (criterion 3). The ticket text that caused the back still differs from the last committed
-  round, so criterion 23 never skips the next round.
+  (criterion 3).
 - The ticket moves to Ready for spec again after its spec pull request was merged: the run
   continues the run file on the base branch in a new round (criterion 20). The merged
   round's results never decide anything (criterion 22).
-- The last round's G1 couldn't run (no G1 result, or skipped with a Jev key configured): a
-  retry is never "nothing new" (criterion 23), so the round runs.
-- A person's comment that starts with `seula · ` is labelled `seula` and doesn't count as new
-  for criterion 23. The comment of criterion 23 tells the author to add a comment, so a second
-  comment starts the round.
 - The continued run file comes from a branch that anyone with push access can change. Earlier
-  rounds' results are shown with the branch they came from (criterion 25) and never decide
-  anything (criterion 22).
+  rounds' results never decide anything (criterion 22), and the pull request doesn't show
+  them (criterion 25).
 - Jev refuses its key in the workflow's own G1 (criterion 15) but not in G0 of the same run:
   G1 couldn't run, so the pull request stays a draft (criterion 8). The warning names
   `TYPESAFE_API_KEY` (criterion 27).
 - Several credentials expire together: the first step that uses one fails, and the reason
   names only that credential.
-- The ticket file on the branch was written before comments were read, so it has no
-  `## Comments` section: it counts as a ticket with no comments (criterion 23).
 - A run file written before rounds existed is round 1 ([`run-files.md`](run-files.md)
   criterion 12).
 

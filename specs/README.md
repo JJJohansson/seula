@@ -40,6 +40,8 @@ confirming by a person.
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.
+- [`round-extras.md`](round-extras.md): skip a ticket with nothing new, warn after many rounds,
+  and show earlier rounds in the pull request. Split from change B; decide after B1.
 - G2 plan coverage, G3 criterion citations in tests, G4 review, G5 smoke check: described in
   [`../docs/quality-gates.md`](../docs/quality-gates.md); specs to be written before they are
   built.
