@@ -224,3 +224,53 @@ test("ticket-to-spec criterion 7: the pull request links the ticket once and sho
   assert.match(pr, /ticket_ref="\[\$TICKET_KEY\]\(\$ticket_link\)"/);
   assert.match(pr, /claudeUsd \* 100 \| round \/ 100/);
 });
+
+// Unsure criteria are for the spec reviewer, not the ticket author (fifth real run, 2026-09-27:
+// G1 passed 10 criteria and was unsure about 2, and MEAL-1 went to Needs input).
+test("ticket-to-spec criterion 8: an unsure G1 with no open questions is a review, not needs input", () => {
+  const result = script("Read the result");
+  assert.ok(result.includes('if [ "$status" = "ready" ] && [ "$g1" = "review" ]; then'));
+  assert.ok(result.includes("status=review"));
+});
+
+test("ticket-to-spec criterion 8: only needs_input and blocked open a draft; an updated PR follows the result", () => {
+  const pr = script("Commit and open the pull request");
+  assert.ok(pr.includes('if [ "$STATUS" != "ready" ] && [ "$STATUS" != "review" ]; then draft=(--draft); fi'));
+  assert.ok(pr.includes('gh pr ready "$branch" --undo'), "an updated PR goes back to draft when not ready");
+  assert.match(pr, /gh pr ready "\$branch"( \|\||$)/m);
+  assert.ok(pr.includes("## Needs your judgement"));
+});
+
+test("ticket-to-spec criterion 9: a review moves the ticket to spec review and lists the unsure criteria", () => {
+  const report = script("Report on the ticket");
+  assert.ok(report.includes('elif [ "$STATUS" = "review" ]; then'));
+  assert.ok(report.includes("→ review"), "lists the criteria G1 was unsure about");
+});
+
+const hasJq = hasBash && spawnSync("jq", ["--version"]).status === 0;
+
+function readResult(opts: { status: string; g1: string; hasJev?: string; questions?: string[] }): string {
+  const d = mkdtempSync(join(tmpdir(), "seula-result-"));
+  mkdirSync(join(d, "specs"));
+  mkdirSync(join(d, ".seula", "runs"), { recursive: true });
+  writeFileSync(join(d, "specs", "a.md"), "# A\n");
+  writeFileSync(join(d, "claude.json"), JSON.stringify({ structured_output: { spec_path: "specs/a.md", status: opts.status, questions: opts.questions ?? [], summary: "" } }));
+  writeFileSync(join(d, ".seula", "runs", "T-1.json"), JSON.stringify({ events: [{ gate: "G1", result: "skipped" }, { gate: "G1", result: opts.g1 }] }));
+  writeFileSync(join(d, "out.txt"), "");
+  const r = spawnSync("bash", ["-eo", "pipefail", "-c", script("Read the result")], {
+    cwd: d,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "", SEULA: "true", RUN_ID: "T-1", RUN_FILE: ".seula/runs/T-1.json", SPEC_DIR: "specs", CLAUDE_EXIT: "0", HAS_JEV: opts.hasJev ?? "true", GITHUB_OUTPUT: join(d, "out.txt") },
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  return /^status=(.*)$/m.exec(readFileSync(join(d, "out.txt"), "utf8"))?.[1] ?? "";
+}
+
+test("ticket-to-spec criterion 8: the routing table, run with bash", { skip: !hasJq && "needs bash and jq" }, () => {
+  assert.equal(readResult({ status: "ready", g1: "pass" }), "ready");
+  assert.equal(readResult({ status: "ready", g1: "review" }), "review");
+  assert.equal(readResult({ status: "ready", g1: "back" }), "needs_input");
+  assert.equal(readResult({ status: "ready", g1: "skipped" }), "needs_input", "a lost Jev key never passes");
+  assert.equal(readResult({ status: "ready", g1: "skipped", hasJev: "false" }), "ready");
+  assert.equal(readResult({ status: "needs_input", g1: "review", questions: ["q"] }), "needs_input", "open questions go to the author");
+});

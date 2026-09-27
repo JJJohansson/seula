@@ -43,11 +43,14 @@ approving it and merging stay with a person.
 7. The workflow commits the spec, the ticket file and the run file to the branch, and opens a
    pull request (or updates the existing one) that links the ticket, lists every gate result and
    its feedback, and states which checks ran.
-8. The pull request opens ready for review only when the run file's last G1 result is pass, or
-   skipped because no Jev key is configured, whatever the agent reports; otherwise it opens as
-   a draft.
+8. The pull request is ready for review only when the agent has no open questions and the run
+   file's last G1 result is pass, skipped because no Jev key is configured, or unsure (review),
+   whatever the agent reports; otherwise it is a draft. When G1 is unsure, the pull request
+   lists the unsure criteria under "Needs your judgement". A pull request that a later run
+   updates follows that run's result.
 9. After the pull request opens, the workflow posts its link on the ticket and sets the ticket
-   to `specReview` when ready, or to `needsInput` with the agent's open questions when not.
+   to `specReview` when the pull request is ready for review (with the unsure criteria, if
+   any), or to `needsInput` with the agent's open questions and G1's feedback when not.
 10. The workflow never sets a spec to a buildable status; a new spec gets the first
     non-buildable status in the config (`Idea` by default).
 11. The Claude cost of the run is added to the run file.
@@ -108,7 +111,11 @@ approving it and merging stay with a person.
    the placeholder and Jev answered 401. Masking is dropped: the agent gets no Jev key, and
    the workflow runs G1 with Jev itself after the agent (criterion 15). The agent no longer
    reworks criteria on Jev feedback; a person answers it on the ticket and moves it back.
-9. Criterion 14 (added 26 Sep 2026): the agent runs with `--setting-sources user`. Under `-p`,
+9. Fifth real run (2026-09-27, MEAL-1): after the ticket was clarified, the agent had no
+   questions and G1 passed 10 criteria and was unsure about 2. The ticket still went to
+   `needsInput`, asking its author to judge criteria. Criteria 8 and 9 now send unsure-only
+   results to spec review, and an updated pull request leaves or enters draft with the result.
+10. Criterion 14 (added 26 Sep 2026): the agent runs with `--setting-sources user`. Under `-p`,
    Claude Code ignores a project's allow rules, but it still runs the project's hooks, applies
    its `env` block, connects its `.mcp.json` servers, and honors a project skill's
    `allowed-tools`. Leaving out the project and local sources stops all of these. The agent

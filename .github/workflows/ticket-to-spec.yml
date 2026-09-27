@@ -268,7 +268,10 @@ jobs:
           g1_ok=false
           if [ "$g1" = "pass" ]; then g1_ok=true; fi
           if [ "$g1" = "skipped" ] && [ "$HAS_JEV" != "true" ]; then g1_ok=true; fi
-          if [ "$status" = "ready" ] && [ "$g1_ok" != "true" ]; then
+          # An unsure G1 with no open questions is for the spec reviewer, not the ticket author.
+          if [ "$status" = "ready" ] && [ "$g1" = "review" ]; then
+            status=review
+          elif [ "$status" = "ready" ] && [ "$g1_ok" != "true" ]; then
             echo "::warning::The agent reported ready, but the last G1 result is '$g1'."
             status=needs_input
           fi
@@ -333,7 +336,15 @@ jobs:
             jq -r '.structured_output.summary // ""' claude.json
             echo
             echo "Drafted by Claude from the ticket and checked by [seula](https://github.com/JJJohansson/seula) quality gates. **A person approves the spec and merges.**"
-            if [ "$STATUS" != "ready" ]; then
+            if [ "$STATUS" = "review" ]; then
+              # Criterion 8: unsure criteria are for the spec reviewer to decide.
+              echo
+              echo "## Needs your judgement"
+              echo
+              echo "G1 was unsure about these criteria. Read them, then keep, reword or remove each one before you approve the spec."
+              echo
+              jq -r '[.events[] | select(.gate == "G1")] | last | (.feedback // [])[] | select(test("→ review")) | "- " + .' "$RUN_FILE"
+            elif [ "$STATUS" != "ready" ]; then
               echo
               echo "> **Draft: needs input ($STATUS).**"
               jq -r '(.structured_output.questions // [])[] | "> - " + .' claude.json
@@ -353,11 +364,18 @@ jobs:
             echo "- [ ] A person has read the spec and set its status"
           } > pr-body.md
 
+          # Criterion 8: ready for review on pass, or on unsure with no open questions (review).
+          draft=()
+          if [ "$STATUS" != "ready" ] && [ "$STATUS" != "review" ]; then draft=(--draft); fi
           if url="$(gh pr view "$branch" --json url -q .url 2>/dev/null)"; then
             gh pr edit "$branch" --body-file pr-body.md
+            # An updated pull request follows this run's result, both ways.
+            if [ "${#draft[@]}" -eq 0 ]; then
+              gh pr ready "$branch" || echo "::warning::Could not mark the pull request ready"
+            else
+              gh pr ready "$branch" --undo || echo "::warning::Could not mark the pull request as a draft"
+            fi
           else
-            draft=()
-            if [ "$STATUS" != "ready" ]; then draft=(--draft); fi
             url="$(gh pr create --base "$BASE_BRANCH" --head "$branch" --title "spec($RUN_ID): $title" --body-file pr-body.md "${draft[@]}")"
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -378,6 +396,14 @@ jobs:
         run: |
           if [ "$STATUS" = "ready" ]; then
             printf 'seula · spec ready for review: %s\n\nG0 and G1 passed. Review the spec, set its status, and merge.\n' "$PR_URL" > comment.md
+            state=specReview
+          elif [ "$STATUS" = "review" ]; then
+            # Criterion 9: unsure criteria go to the spec reviewer, not back to the ticket author.
+            {
+              printf 'seula · spec ready for review: %s\n\n' "$PR_URL"
+              printf 'G1 passed the other criteria and was unsure about these. Decide on them in the spec review:\n'
+              jq -r '[.events[] | select(.gate == "G1")] | last | (.feedback // [])[] | select(test("→ review")) | "- " + .' "$RUN_FILE" 2>/dev/null || true
+            } > comment.md
             state=specReview
           else
             {
