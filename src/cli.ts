@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { calibrate, calibrationReport, type LabelsFile } from "./calibrate.ts";
-import { type SeulaConfig, type TrackerState, type TrackerType, loadConfig } from "./config.ts";
+import { type SeulaConfig, type TrackerType, isTrackerState, loadConfig, trackerStates } from "./config.ts";
 import { CredentialError } from "./errors.ts";
 import { type CheckSpecResult, checkSpec } from "./gates/checkSpec.ts";
 import { type JevSpecResult, feedbackLines, jevSpec } from "./gates/jevSpec.ts";
@@ -34,7 +34,8 @@ Usage:
   seula tracker ticket --event <file> --out <file>        Ticket file from a trigger event
   seula tracker comments --key <key> --append <file>      Add the ticket's comments to a ticket file
   seula tracker comment --key <key> --text-file <file>    Comment on a ticket
-  seula tracker move --key <key> --state <needsInput|specReview>
+  seula tracker state --key <key> [--fail-on <state>]     The ticket's state; exits 1 when it is in <state>
+  seula tracker move --key <key> --state <needsInput|specReview|planning>
   seula prompt spec-writer --run <id> --ticket <file>     The spec-writer prompt for a run
                                  (--previous-spec <file>: an earlier run's draft to update)
   seula config                   The effective configuration, as JSON
@@ -85,6 +86,7 @@ interface Options {
   out?: string;
   key?: string;
   state?: string;
+  "fail-on"?: string;
   "text-file"?: string;
   append?: string;
   "seula-cmd"?: string;
@@ -287,16 +289,35 @@ async function trackerCommand(
       out(`Commented on ${key}.`, { key, commented: true });
       return 0;
     }
+    case "state": {
+      const key = need(opts.key, "tracker state --key <key> [--fail-on <needsInput|specReview|planning>]");
+      const failOn = opts["fail-on"];
+      if (failOn !== undefined && !isTrackerState(failOn)) throw new UsageError("--fail-on must be needsInput, specReview or planning.");
+      const { status, state } = await tracker.state(key);
+      process.stdout.write(`${JSON.stringify({ key, status, state })}
+`);
+      if (failOn !== undefined && state === failOn) {
+        process.stderr.write(`${key} is in the ${failOn} state ("${status}").
+`);
+        return 1;
+      }
+      return 0;
+    }
     case "move": {
-      const key = need(opts.key, "tracker move --key <key> --state <needsInput|specReview>");
-      const state = opts.state as TrackerState;
-      if (state !== "needsInput" && state !== "specReview") throw new UsageError("--state must be needsInput or specReview.");
+      const key = need(opts.key, "tracker move --key <key> --state <needsInput|specReview|planning>");
+      const state = opts.state;
+      if (!isTrackerState(state)) throw new UsageError("--state must be needsInput, specReview or planning.");
+      // planning has no default: without the setting, the move is skipped (trackers criterion 15).
+      if (!trackerStates({ ...config, tracker: { ...config.tracker, type } })[state]) {
+        out(`Moved nothing: tracker.states.${state} is not set in seula.config.json.`, { key, state, moved: false });
+        return 0;
+      }
       await tracker.move(key, state);
       out(`Moved ${key} to ${state}.`, { key, state });
       return 0;
     }
     default:
-      throw new UsageError("Usage: seula tracker ticket|comments|comment|move …");
+      throw new UsageError("Usage: seula tracker ticket|comments|comment|state|move …");
   }
 }
 
@@ -359,6 +380,7 @@ function parse(argv: string[]) {
       out: { type: "string" },
       key: { type: "string" },
       state: { type: "string" },
+      "fail-on": { type: "string" },
       "text-file": { type: "string" },
       append: { type: "string" },
       "seula-cmd": { type: "string" },

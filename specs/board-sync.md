@@ -1,6 +1,6 @@
 # FEATURE: Board sync (the ticket follows the spec pull request)
 
-> **Status:** Approved (28 Sep 2026). Not yet built.
+> **Status:** Approved (28 Sep 2026). Unit 1 (trackers criteria 14–15) built 28 Sep 2026; units 2–3 not yet.
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `board-sync.yml`, that keeps a ticket's state in step with

@@ -1,5 +1,5 @@
 /** The one interface every issue tracker adapter implements (specs/trackers.md criterion 1). */
-import type { TrackerState, TrackerType } from "../config.ts";
+import { TRACKER_STATES, type TrackerState, type TrackerStates, type TrackerType } from "../config.ts";
 import { CredentialError } from "../errors.ts";
 
 export interface Ticket {
@@ -23,6 +23,12 @@ export interface TicketComment {
   fromSeula: boolean;
 }
 
+/** A ticket's state as the tracker names it, and the configured state it matches (trackers criterion 14). */
+export interface TicketState {
+  status: string | null;
+  state: TrackerState | null;
+}
+
 /** The newest comments, oldest first, and how many the ticket has in total. */
 export interface CommentPage {
   comments: TicketComment[];
@@ -37,6 +43,7 @@ export interface Tracker {
   /** The newest `max` comments of the ticket, oldest first. */
   comments(key: string, max: number): Promise<CommentPage>;
   comment(key: string, text: string): Promise<void>;
+  state(key: string): Promise<TicketState>;
   move(key: string, state: TrackerState): Promise<void>;
 }
 
@@ -46,6 +53,19 @@ const SEULA_PREFIXES = ["seula · ", "seula failed to run"];
 export function ticketComment(author: string, created: string, body: string): TicketComment {
   const start = body.trimStart();
   return { author, created, body, fromSeula: SEULA_PREFIXES.some((p) => start.startsWith(p)) };
+}
+
+/** The configured state whose name matches `status`, ignoring case, or null. */
+export function matchState(states: TrackerStates, status: string | null): TrackerState | null {
+  if (status === null) return null;
+  return TRACKER_STATES.find((s) => states[s]?.toLowerCase() === status.toLowerCase()) ?? null;
+}
+
+/** The configured name of `state`. A state that is not configured is a usage error. */
+export function stateName(states: TrackerStates, state: TrackerState): string {
+  const name = states[state];
+  if (!name) throw new TicketError(`tracker.states.${state} is not set in seula.config.json.`);
+  return name;
 }
 
 /** The event or a key is not usable: a usage error (exit 64). */

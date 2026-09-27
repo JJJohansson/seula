@@ -267,3 +267,65 @@ test("trackers criterion 9: a tracker command exits 77 when the tracker refuses 
   assert.match(r.stderr, /GITHUB_TOKEN/);
   assert.ok(!r.stderr.includes("ghs_sekret"));
 });
+
+/** Runs the CLI against a local fake GitHub API that answers every request with `status` and `body`, and records the requests. */
+async function runAgainstGitHub(status: number, body: unknown, args: string[], cwd: string) {
+  const requests: string[] = [];
+  const server = createServer((req, res) => {
+    requests.push(`${req.method} ${req.url}`);
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify(body));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  const env = { ...process.env };
+  for (const key of ["TYPESAFE_API_KEY", "JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "GITHUB_TOKEN"]) delete env[key];
+  try {
+    const extra = { GITHUB_TOKEN: "ghs_x", GITHUB_REPOSITORY: "acme/app", GITHUB_API_URL: `http://127.0.0.1:${port}` };
+    const child = spawn(process.execPath, [CLI, "tracker", "--tracker", "github", ...args], { cwd, env: { ...env, ...extra } });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    return { code, stdout, stderr, requests };
+  } finally {
+    server.close();
+  }
+}
+
+const NEEDS_INPUT = { labels: [{ name: "seula:needs-input" }] };
+
+test("trackers criterion 14: tracker state prints key, status and state as a JSON line", async () => {
+  const r = await runAgainstGitHub(200, NEEDS_INPUT, ["state", "--key", "1"], workdir());
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), { key: "1", status: "seula:needs-input", state: "needsInput" });
+  assert.deepEqual(r.requests, ["GET /repos/acme/app/issues/1"]);
+});
+
+test("trackers criterion 14: --fail-on exits 1 in that state and names the key and the state, else 0", async () => {
+  const d = workdir();
+  const failed = await runAgainstGitHub(200, NEEDS_INPUT, ["state", "--key", "1", "--fail-on", "needsInput"], d);
+  assert.equal(failed.code, 1);
+  assert.match(failed.stderr, /\b1\b/);
+  assert.match(failed.stderr, /needsInput/);
+  const passed = await runAgainstGitHub(200, { labels: [{ name: "seula:spec-review" }] }, ["state", "--key", "1", "--fail-on", "needsInput"], d);
+  assert.equal(passed.code, 0, passed.stderr);
+});
+
+test("trackers criterion 15: move --state planning without the setting calls no API, says so, and exits 0", async () => {
+  const r = await runAgainstGitHub(200, {}, ["move", "--key", "1", "--state", "planning"], workdir());
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /tracker\.states\.planning/);
+  assert.deepEqual(r.requests, []);
+});
+
+test("trackers criteria 6 and 14: --state and --fail-on accept only needsInput, specReview and planning", async () => {
+  const d = workdir();
+  assert.equal((await runAgainstGitHub(200, {}, ["move", "--key", "1", "--state", "done"], d)).code, 64);
+  assert.equal((await runAgainstGitHub(200, NEEDS_INPUT, ["state", "--key", "1", "--fail-on", "done"], d)).code, 64);
+});
+
+test("trackers criterion 14: tracker state needs a key", () => {
+  assert.equal(run(["tracker", "state", "--tracker", "github"], workdir()).code, 64);
+});

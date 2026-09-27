@@ -1,6 +1,6 @@
-/** Jira Cloud adapter (specs/trackers.md criteria 3, 5, 6, 8, 10). */
-import type { TrackerState } from "../config.ts";
-import { type CommentPage, type Ticket, TicketError, type Tracker, TrackerApiError, failIfNotOk, httpsOrEmpty, ticketComment } from "./types.ts";
+/** Jira Cloud adapter (specs/trackers.md criteria 3, 5, 6, 8, 10, 14). */
+import type { TrackerState, TrackerStates } from "../config.ts";
+import { type CommentPage, type Ticket, TicketError, type TicketState, type Tracker, TrackerApiError, failIfNotOk, httpsOrEmpty, matchState, stateName, ticketComment } from "./types.ts";
 
 export interface JiraEnv {
   JIRA_BASE_URL?: string;
@@ -15,10 +15,10 @@ export class JiraTracker implements Tracker {
   readonly type = "jira" as const;
   readonly keyPattern = /^[A-Z][A-Z0-9]+-[0-9]+$/;
   private readonly env: JiraEnv;
-  private readonly states: Record<TrackerState, string>;
+  private readonly states: TrackerStates;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(env: JiraEnv, states: Record<TrackerState, string>, fetchImpl: typeof fetch = fetch) {
+  constructor(env: JiraEnv, states: TrackerStates, fetchImpl: typeof fetch = fetch) {
     this.env = env;
     this.states = states;
     this.fetchImpl = fetchImpl;
@@ -54,9 +54,19 @@ export class JiraTracker implements Tracker {
     await failIfNotOk(res, `Jira comment on ${key}`, CREDENTIAL);
   }
 
+  async state(key: string): Promise<TicketState> {
+    this.checkKey(key);
+    const res = await this.api(`/rest/api/2/issue/${key}?fields=status`, { method: "GET" });
+    await failIfNotOk(res, `Jira status of ${key}`, CREDENTIAL);
+    const data = (await res.json()) as { fields?: { status?: { name?: unknown } } };
+    const name = data.fields?.status?.name;
+    const status = typeof name === "string" ? name : null;
+    return { status, state: matchState(this.states, status) };
+  }
+
   async move(key: string, state: TrackerState): Promise<void> {
     this.checkKey(key);
-    const target = this.states[state];
+    const target = stateName(this.states, state);
     const res = await this.api(`/rest/api/2/issue/${key}/transitions`, { method: "GET" });
     await failIfNotOk(res, `Jira transitions for ${key}`, CREDENTIAL);
     const data = (await res.json()) as { transitions?: { id: string; to?: { name?: string } }[] };
