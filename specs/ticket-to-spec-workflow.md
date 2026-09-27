@@ -177,7 +177,7 @@ approving it and merging stay with a person.
    be able to make the ticket pass. Because G0 now reads seula's comments, those comments are
    written so that G0's check for text aimed at the agent has nothing to find in them
    (criterion 19). The failure comment names the failed step, so a person sees the reason
-   without opening the log. Each step that can fail sets its own name as the current step
-   before it starts. The Claude error kind comes from a fixed list; Claude's own error text is
-   never posted. The field names of Claude Code's JSON output (`num_turns`, `duration_ms`,
+   without opening the log. The failure step reads each step's outcome
+   (`steps.<id>.outcome`) and names the first step that failed or was cancelled. The Claude
+   error kind comes from a fixed list; Claude's own error text is never posted. The field names of Claude Code's JSON output (`num_turns`, `duration_ms`,
    `modelUsage`) are checked in the first real run after this change.

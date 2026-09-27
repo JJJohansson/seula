@@ -136,6 +136,7 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Ask on the ticket (G0 did not pass)
+        id: ask
         if: steps.g0.outputs.code != '0'
         env:
           GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
@@ -144,11 +145,14 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
           jq -r '"seula · G0: this ticket needs input before a spec can be written.\n\n" + (((.asks // []) + (.notes // [])) | map("- " + .) | join("\n"))' g0.json > comment.md
+          # Criterion 19: say how to answer.
+          printf '\n%s\n' "The ticket's author can answer in a comment, then start seula again." >> comment.md
           $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file comment.md
           $SEULA tracker move --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --state needsInput ||
             echo "::warning::Could not set the ticket to needsInput"
 
       - name: Find an earlier run for this ticket (criterion 16)
+        id: earlier
         if: steps.g0.outputs.code == '0'
         env:
           GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
@@ -180,6 +184,7 @@ jobs:
           echo "PREVIOUS_SPEC=$previous" >> "$GITHUB_ENV"
 
       - name: Install Claude Code
+        id: install
         if: steps.g0.outputs.code == '0'
         run: |
           # Criterion 5: with CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, Claude Code runs every agent
@@ -253,6 +258,7 @@ jobs:
           jq '{is_error, num_turns, total_cost_usd, structured_output}' claude.json || cat claude.json
 
       - name: G1 · the workflow's own check (criteria 8, 15)
+        id: g1
         if: steps.g0.outputs.code == '0'
         env:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
@@ -288,9 +294,20 @@ jobs:
           case "$status" in ready|needs_input|blocked) ;; *) status=blocked ;; esac
           # Criterion 17: a Claude error (the turn cap included) or no valid spec path is a
           # technical failure, not a result about the ticket. No pull request, even if the agent
-          # wrote a file; the failure report says so on the ticket.
-          if [ "$CLAUDE_EXIT" != "0" ]; then
-            echo "::error::Claude exited with an error (exit $CLAUDE_EXIT)."
+          # wrote a file; the failure report says so on the ticket. The reason is a code from a
+          # fixed list, so none of Claude's text reaches the ticket.
+          reason=""
+          subtype="$(jq -r '.subtype // ""' claude.json 2>/dev/null || echo "")"
+          is_error="$(jq -r '.is_error // false' claude.json 2>/dev/null || echo "")"
+          if [ "$CLAUDE_EXIT" != "0" ] || [ "$is_error" = "true" ] || [[ "$subtype" == error* ]]; then
+            if [ "$subtype" = "error_max_turns" ]; then
+              reason=turn_cap
+            elif jq -e '((.result // "") | tostring | startswith("API Error")) or has("api_error_status")' claude.json > /dev/null 2>&1; then
+              reason=claude_api
+            else
+              reason=claude_other
+            fi
+            echo "::error::Claude stopped with an error (exit $CLAUDE_EXIT, $reason)."
             status=failed
           fi
           case "$spec" in
@@ -300,6 +317,7 @@ jobs:
           if ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*\.md$ ]] || [ ! -f "$spec" ]; then
             echo "::error::The agent returned no valid spec path: '$spec'"
             status=failed
+            if [ -z "$reason" ]; then reason=no_spec; fi
           fi
           if [ "$status" = "failed" ]; then spec=""; fi
           # Criterion 16: if the agent wrote another file than the earlier draft, the draft goes,
@@ -325,9 +343,11 @@ jobs:
             echo "spec=$spec"
             echo "status=$status"
             echo "g1=$g1"
+            echo "reason=$reason"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check the agent's output for secrets (criterion 13)
+        id: secrets
         if: steps.g0.outputs.code == '0'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -432,6 +452,7 @@ jobs:
           git_auth push
 
       - name: Report on the ticket (criterion 9)
+        id: report
         if: steps.g0.outputs.code == '0' && steps.result.outputs.status != 'failed'
         env:
           GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
@@ -441,14 +462,16 @@ jobs:
           STATUS: ${{ steps.result.outputs.status }}
           PR_URL: ${{ steps.pr.outputs.url }}
         run: |
+          # Criterion 19: G0 reads these comments on the next run, so they describe what happened
+          # and what a person can do next. They never command anyone.
           if [ "$STATUS" = "ready" ]; then
-            printf 'seula · spec ready for review: %s\n\nG0 and G1 passed. Review the spec, set its status, and merge.\n' "$PR_URL" > comment.md
+            printf 'seula · spec ready for review: %s\n\nG0 and G1 passed. Next, a person reviews the spec, sets its status and merges the pull request.\n' "$PR_URL" > comment.md
             state=specReview
           elif [ "$STATUS" = "review" ]; then
             # Criterion 9: unsure criteria go to the spec reviewer, not back to the ticket author.
             {
               printf 'seula · spec ready for review: %s\n\n' "$PR_URL"
-              printf 'G1 passed the other criteria and was unsure about these. Decide on them in the spec review:\n'
+              printf 'G1 passed the other criteria and was unsure about these. The spec reviewer decides on them:\n'
               jq -r '[.events[] | select(.gate == "G1")] | last | (.feedback // [])[] | select(test("→ review")) | "- " + .' "$RUN_FILE" 2>/dev/null || true
             } > comment.md
             state=specReview
@@ -459,6 +482,7 @@ jobs:
               # Criterion 9: what G1 (the workflow's own check, criterion 15) found in the criteria.
               feedback="$(jq -r '[.events[] | select(.gate == "G1")] | last | .feedback // [] | map("- " + .) | join("\n")' "$RUN_FILE" 2>/dev/null || true)"
               if [ -n "$feedback" ]; then printf '\n\nG1 found these criteria unclear or not testable:\n%s\n' "$feedback"; fi
+              printf '\n%s\n' "The ticket's author can answer in a comment, then start seula again."
             } > comment.md
             state=needsInput
           fi
@@ -474,19 +498,63 @@ jobs:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          # Why it failed: the outcome of each step that can fail, and the result's reason code.
+          OUT_G0: ${{ steps.g0.outcome }}
+          OUT_ASK: ${{ steps.ask.outcome }}
+          OUT_EARLIER: ${{ steps.earlier.outcome }}
+          OUT_INSTALL: ${{ steps.install.outcome }}
+          OUT_CLAUDE: ${{ steps.claude.outcome }}
+          OUT_G1: ${{ steps.g1.outcome }}
+          OUT_RESULT: ${{ steps.result.outcome }}
+          OUT_SECRETS: ${{ steps.secrets.outcome }}
+          OUT_PR: ${{ steps.pr.outcome }}
+          OUT_REPORT: ${{ steps.report.outcome }}
+          RESULT_REASON: ${{ steps.result.outputs.reason }}
         run: |
           # Criterion 17: a technical failure says so and leaves the ticket's state alone. The
-          # comment is fixed text and the run link, never the agent's output (criterion 13), so
-          # it is safe to post after the secret check stopped the run.
+          # comment is fixed text, a step's name and the run link, never the agent's output
+          # (criterion 13), so it is safe to post after the secret check stopped the run.
           if [ -z "${TICKET_KEY:-}" ]; then
             echo "::warning::No ticket key, so the failure can't be reported on the ticket."
             exit 0
           fi
+          # The steps that can fail, in workflow order: the first that failed is the reason.
+          steps=(
+            "OUT_G0|G0 · is the ticket ready?"
+            "OUT_ASK|Ask on the ticket"
+            "OUT_EARLIER|Find an earlier run for this ticket"
+            "OUT_INSTALL|Install Claude Code"
+            "OUT_CLAUDE|Write the spec"
+            "OUT_G1|G1 · the workflow's own check"
+            "OUT_RESULT|Read the result"
+            "OUT_SECRETS|Check the agent's output for secrets"
+            "OUT_PR|Commit and open the pull request"
+            "OUT_REPORT|Report on the ticket"
+          )
+          reason=""
+          for entry in "${steps[@]}"; do
+            var="${entry%%|*}"
+            name="${entry#*|}"
+            case "${!var:-}" in
+              failure) reason="Failed at the step \"$name\"."; break ;;
+              cancelled) reason="Cancelled at the step \"$name\", for example by the run's time limit."; break ;;
+            esac
+          done
+          if [ -z "$reason" ]; then
+            case "${RESULT_REASON:-}" in
+              turn_cap) reason="Claude reached its turn limit." ;;
+              claude_api) reason="Claude stopped with an API error." ;;
+              claude_other) reason="Claude stopped with an error." ;;
+              no_spec) reason="The agent returned no valid spec file." ;;
+              *) reason="Not known. The run's log has the details." ;;
+            esac
+          fi
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           {
             printf 'seula failed to run: %s\n\n' "$run_url"
+            printf 'Why: %s\n\n' "$reason"
             printf 'This is a technical failure, not a problem with the ticket, so the ticket stays where it is.\n'
-            printf 'To try again, re-run the workflow from the link, or start it from the ticket the way you did before.\n'
+            printf 'A person can re-run the workflow from the link, or start seula again from the ticket.\n'
           } > failure-comment.md
           $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file failure-comment.md ||
             echo "::warning::Could not report the failure on the ticket"
