@@ -148,6 +148,37 @@ jobs:
           $SEULA tracker move --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --state needsInput ||
             echo "::warning::Could not set the ticket to needsInput"
 
+      - name: Find an earlier run for this ticket (criterion 16)
+        if: steps.g0.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+        run: |
+          # One branch and one pull request per ticket. Reuse the ticket's open pull request
+          # branch (also one named by an older seula, seula/<key>-<spec>), else seula/<key>.
+          key_lc="$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
+          branch="seula/$key_lc"
+          existing="$(gh pr list --state open --limit 100 --json headRefName |
+            jq -r --arg b "$branch" '[.[].headRefName | select(. == $b or startswith($b + "-"))] | first // ""')"
+          if [[ "$existing" =~ ^seula/[a-z0-9._-]+$ ]]; then branch="$existing"; fi
+          echo "BRANCH=$branch" >> "$GITHUB_ENV"
+          # A spec that an earlier run added (not on the base branch) goes back into the
+          # working tree, and the agent is told to update it. Only added files, so newer
+          # versions of files on the base branch are never replaced.
+          previous=""
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          if git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+              fetch -q origin "refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null; then
+            base="$(git merge-base HEAD "origin/$branch")"
+            previous="$(git diff --name-only --diff-filter=A "$base" "origin/$branch" -- "$SPEC_DIR" |
+              grep -E "^$SPEC_DIR/[a-z0-9][a-z0-9-]*\.md$" | head -n 1 || true)"
+            if [ -n "$previous" ]; then
+              git checkout "origin/$branch" -- "$previous"
+              echo "Earlier draft for $RUN_ID: $previous (from $branch)"
+            fi
+          fi
+          echo "PREVIOUS_SPEC=$previous" >> "$GITHUB_ENV"
+
       - name: Install Claude Code
         if: steps.g0.outputs.code == '0'
         run: |
@@ -193,7 +224,10 @@ jobs:
           # agent's G1 checks the format, and the next step runs G1 with Jev (criterion 15).
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
         run: |
-          prompt="$($SEULA prompt spec-writer --run "$RUN_ID" --ticket "$TICKET_FILE" --seula-cmd "$SEULA")"
+          # Criterion 16: an earlier run's draft spec is named in the prompt, to be updated.
+          previous_args=()
+          if [ -n "${PREVIOUS_SPEC:-}" ]; then previous_args=(--previous-spec "$PREVIOUS_SPEC"); fi
+          prompt="$($SEULA prompt spec-writer --run "$RUN_ID" --ticket "$TICKET_FILE" --seula-cmd "$SEULA" "${previous_args[@]}")"
           schema='{"type":"object","properties":{"spec_path":{"type":"string"},"status":{"type":"string","enum":["ready","needs_input","blocked"]},"questions":{"type":"array","items":{"type":"string"}},"summary":{"type":"string"}},"required":["spec_path","status","questions","summary"]}'
           # Criterion 5: reads (file tools and commands such as cat) stay in the working
           # directory and the installed skills. Edit rules also cover Write. The only
@@ -262,6 +296,12 @@ jobs:
             spec=""
             status=blocked
           fi
+          # Criterion 16: if the agent wrote another file than the earlier draft, the draft goes,
+          # so a pull request never holds two specs for one ticket.
+          if [ -n "${PREVIOUS_SPEC:-}" ] && [ -n "$spec" ] && [ "$spec" != "$PREVIOUS_SPEC" ]; then
+            echo "::warning::The agent wrote $spec instead of updating $PREVIOUS_SPEC; the earlier draft is removed."
+            rm -f -- "$PREVIOUS_SPEC"
+          fi
           # Trust the gate record, not the agent's own report. A skipped G1 counts only when no
           # Jev key is configured (criterion 8), so a lost key can't pass silently.
           g1="$(jq -r '[.events[] | select(.gate == "G1")] | last | .result // "none"' "$RUN_FILE")"
@@ -314,7 +354,8 @@ jobs:
           G1_RESULT: ${{ steps.result.outputs.g1 }}
         run: |
           title="$(jq -r .title ticket.json)"
-          branch="seula/$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')-$(basename "$SPEC" .md)"
+          # Criterion 16: one branch per ticket, chosen before the agent ran.
+          branch="$BRANCH"
           git config user.name "seula[bot]"
           git config user.email "seula-bot@users.noreply.github.com"
           git checkout -b "$branch"

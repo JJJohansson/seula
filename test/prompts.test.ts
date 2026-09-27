@@ -44,3 +44,19 @@ test("agent-plugin: unsafe run ids or ticket paths are rejected", () => {
   assert.throws(() => renderSpecWriterPrompt(config(), { runId: "../x", ticketFile: "t.md", seulaCmd: "s" }), /Invalid run id/);
   assert.throws(() => renderSpecWriterPrompt(config(), { runId: "A-1", ticketFile: "t.md; ls", seulaCmd: "s" }), /Unexpected characters/);
 });
+
+test("ticket-to-spec criterion 16: an earlier run's draft spec is named, to be updated and not replaced", () => {
+  const p = renderSpecWriterPrompt(config(), { runId: "A-1", ticketFile: "t.md", seulaCmd: "seula", previousSpec: "specs/copy-ingredients.md", cwd: dir() });
+  assert.match(p, /Earlier draft: An earlier run for this ticket wrote specs\/copy-ingredients\.md\./);
+  assert.match(p, /Update that file\. Keep its file name\. Do not create another spec for this ticket\./);
+  const none = renderSpecWriterPrompt(config(), { runId: "A-1", ticketFile: "t.md", seulaCmd: "seula", cwd: dir() });
+  assert.match(none, /Earlier draft: None\./);
+  assert.doesNotMatch(none, /\{\{[A-Z_]+\}\}/);
+});
+
+test("ticket-to-spec criterion 16: the earlier draft must be a spec file in the spec directory", () => {
+  const render = (previousSpec: string) => renderSpecWriterPrompt(config(), { runId: "A-1", ticketFile: "t.md", seulaCmd: "s", previousSpec, cwd: dir() });
+  assert.throws(() => render("other/x.md"), /Invalid earlier draft/);
+  assert.throws(() => render("specs/../x.md"), /Invalid earlier draft/);
+  assert.throws(() => render("specs/x.md; ls"), /Invalid earlier draft/);
+});

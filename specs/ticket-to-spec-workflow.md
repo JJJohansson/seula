@@ -67,6 +67,11 @@ approving it and merging stay with a person.
     returned and records the result in the run file. That is the last G1 result for
     criterion 8. When it sends the spec back or is unsure, its feedback goes on the ticket as
     well as in the pull request.
+16. Every run for the same ticket uses one branch and one pull request: the ticket's open
+    pull request branch if it has one, else `seula/<ticket key>`. When an earlier run for the
+    ticket added a spec that is not on the base branch, the agent gets that spec and is told
+    to update it, not to write another. If the agent still returns another file, the earlier
+    draft is removed, so the pull request holds one spec for the ticket.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -74,8 +79,9 @@ approving it and merging stay with a person.
 - Gates G2 to G5.
 
 ## EDGE CASES
-- The same ticket triggers again after `needsInput`: the branch is regenerated and the
-  existing pull request's description is updated.
+- The same ticket triggers again after `needsInput`: the branch is regenerated from the base
+  branch, the earlier draft spec is carried over (criterion 16), and the existing pull
+  request's description is updated.
 - The agent returns no valid spec path: no pull request; the ticket gets a comment; the run
   fails visibly.
 - No `TYPESAFE_API_KEY`: Jev checks are recorded as skipped; the format checks still run.
@@ -115,6 +121,11 @@ approving it and merging stay with a person.
    questions and G1 passed 10 criteria and was unsure about 2. The ticket still went to
    `needsInput`, asking its author to judge criteria. Criteria 8 and 9 now send unsure-only
    results to spec review, and an updated pull request leaves or enters draft with the result.
+   The rehearsal (MEAL-3) then moved a ticket to `specReview` automatically for the first time.
+   It also showed that a retry of a ticket with a **new** spec started from the base branch,
+   didn't see its own draft, wrote another spec with another name, and opened a second pull
+   request (the branch name included the spec's name). Criterion 16 fixes that: one branch per
+   ticket, and the earlier draft goes to the agent.
 10. Criterion 14 (added 26 Sep 2026): the agent runs with `--setting-sources user`. Under `-p`,
    Claude Code ignores a project's allow rules, but it still runs the project's hooks, applies
    its `env` block, connects its `.mcp.json` servers, and honors a project skill's

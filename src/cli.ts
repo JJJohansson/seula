@@ -33,6 +33,7 @@ Usage:
   seula tracker comment --key <key> --text-file <file>    Comment on a ticket
   seula tracker move --key <key> --state <needsInput|specReview>
   seula prompt spec-writer --run <id> --ticket <file>     The spec-writer prompt for a run
+                                 (--previous-spec <file>: an earlier run's draft to update)
   seula config                   The effective configuration, as JSON
 
 Options:
@@ -80,6 +81,7 @@ interface Options {
   state?: string;
   "text-file"?: string;
   "seula-cmd"?: string;
+  "previous-spec"?: string;
   "spec-dir"?: string;
   "design-first"?: boolean;
   "seula-ref"?: string;
@@ -212,7 +214,7 @@ async function main(argv: string[]): Promise<number> {
       const runId = need(opts.run, "prompt spec-writer --run <id> --ticket <file>");
       const ticketFile = need(opts.ticket, "prompt spec-writer --run <id> --ticket <file>");
       const designLink = readRun(config.runsDir, runId)?.links.design;
-      process.stdout.write(renderSpecWriterPrompt(config, { runId, ticketFile, seulaCmd: opts["seula-cmd"] ?? "npx -y github:JJJohansson/seula", designLink }));
+      process.stdout.write(renderSpecWriterPrompt(config, { runId, ticketFile, seulaCmd: opts["seula-cmd"] ?? "npx -y github:JJJohansson/seula", designLink, previousSpec: opts["previous-spec"] }));
       return 0;
     }
 
@@ -335,6 +337,7 @@ function parse(argv: string[]) {
       state: { type: "string" },
       "text-file": { type: "string" },
       "seula-cmd": { type: "string" },
+      "previous-spec": { type: "string" },
       "spec-dir": { type: "string" },
       "design-first": { type: "boolean", default: false },
       "seula-ref": { type: "string" },

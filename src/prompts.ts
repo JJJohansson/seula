@@ -15,6 +15,8 @@ export interface SpecWriterInput {
   ticketFile: string;
   seulaCmd: string;
   designLink?: string;
+  /** A spec file that an earlier run for this ticket added (ticket-to-spec criterion 16). */
+  previousSpec?: string;
   cwd?: string;
 }
 
@@ -37,19 +39,31 @@ export function designText(designLink: string | undefined): string {
   );
 }
 
+export function previousSpecText(previousSpec: string | undefined, specDir: string): string {
+  if (!previousSpec) return "None.";
+  const name = previousSpec.startsWith(`${specDir}/`) ? previousSpec.slice(specDir.length + 1) : "";
+  if (!/^[a-z0-9][a-z0-9-]*\.md$/.test(name)) throw new Error(`Invalid earlier draft "${previousSpec}".`);
+  return (
+    `An earlier run for this ticket wrote ${previousSpec}. It is not in the index yet. ` +
+    "Update that file. Keep its file name. Do not create another spec for this ticket."
+  );
+}
+
 export function renderSpecWriterPrompt(config: SeulaConfig, input: SpecWriterInput): string {
   if (!/^[A-Za-z0-9._-]+$/.test(input.runId)) throw new Error(`Invalid run id "${input.runId}".`);
   if (!/^[\w./-]+$/.test(input.ticketFile)) throw new Error(`Unexpected characters in the ticket file path "${input.ticketFile}".`);
   const cwd = input.cwd ?? process.cwd();
   const template = readFileSync(join(SEULA_ROOT, "prompts", "spec-writer.md"), "utf8");
+  const specDir = config.specDir.replace(/\/+$/, "");
   const values: Record<string, string> = {
     RUN_ID: input.runId,
     TICKET_FILE: input.ticketFile,
-    SPEC_DIR: config.specDir.replace(/\/+$/, ""),
+    SPEC_DIR: specDir,
     TEMPLATE: templateFor(config, cwd),
     SEULA: input.seulaCmd,
     NEW_STATUS: newSpecStatus(config),
     DESIGN: designText(input.designLink),
+    PREVIOUS_SPEC: previousSpecText(input.previousSpec, specDir),
   };
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (m, name: string) => values[name] ?? m);
 }

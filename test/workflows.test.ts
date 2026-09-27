@@ -274,3 +274,93 @@ test("ticket-to-spec criterion 8: the routing table, run with bash", { skip: !ha
   assert.equal(readResult({ status: "ready", g1: "skipped", hasJev: "false" }), "ready");
   assert.equal(readResult({ status: "needs_input", g1: "review", questions: ["q"] }), "needs_input", "open questions go to the author");
 });
+
+// Sixth real run (2026-09-27, MEAL-3): the retry started from main, didn't see its own new draft
+// spec, wrote another with a different name, and opened a second pull request.
+const EARLIER = "Find an earlier run for this ticket";
+
+test("ticket-to-spec criterion 16: the branch is named after the ticket, or reuses the ticket's open PR branch", () => {
+  const find = script(EARLIER);
+  assert.ok(find.includes('branch="seula/$key_lc"'));
+  assert.ok(find.includes('select(. == $b or startswith($b + "-"))'), "reuses an open branch of this ticket, also old-style names");
+  const pr = script("Commit and open the pull request");
+  assert.ok(pr.includes('branch="$BRANCH"'));
+  assert.doesNotMatch(pr, /basename "\$SPEC"/, "the spec's name no longer picks the branch");
+});
+
+test("ticket-to-spec criterion 16: the agent gets the spec an earlier run added, and only that", () => {
+  const names = stepNames();
+  const find = names.findIndex((n) => n.startsWith(EARLIER));
+  assert.ok(find >= 0 && find < names.findIndex((n) => n.startsWith(AGENT)), "runs before the agent");
+  const run = script(EARLIER);
+  assert.ok(run.includes("--diff-filter=A"), "only files the branch added, so main's newer files are kept");
+  assert.ok(run.includes('git checkout "origin/$branch" -- "$previous"'));
+  assert.ok(script(AGENT).includes("--previous-spec"));
+  // It reads the branch with the bot token, in this step only; the agent's step still has none.
+  assert.match(step(EARLIER), /GH_TOKEN: \$\{\{ secrets\.SEULA_GH_TOKEN \}\}/);
+  assert.doesNotMatch(step(AGENT), /SEULA_GH_TOKEN/);
+});
+
+test("ticket-to-spec criterion 16: a pull request never holds two specs for one ticket", () => {
+  const result = script("Read the result");
+  assert.ok(result.includes('if [ -n "${PREVIOUS_SPEC:-}" ] && [ -n "$spec" ] && [ "$spec" != "$PREVIOUS_SPEC" ]; then'));
+  assert.ok(result.includes('rm -f -- "$PREVIOUS_SPEC"'));
+});
+
+function earlierRun(openBranches: string[]) {
+  const d = mkdtempSync(join(tmpdir(), "seula-earlier-"));
+  const origin = join(d, "origin.git");
+  const work = join(d, "work");
+  const bin = join(d, "bin");
+  mkdirSync(bin);
+  // A stand-in for gh: lists the given open pull request branches.
+  writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho '${JSON.stringify(openBranches.map((b) => ({ headRefName: b })))}'\n`, { mode: 0o755 });
+  const git = (cwd: string, ...args: string[]) => {
+    const r = spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  spawnSync("git", ["init", "-q", "--bare", origin]);
+  mkdirSync(work);
+  git(work, "init", "-q", "-b", "main");
+  mkdirSync(join(work, "specs"));
+  writeFileSync(join(work, "specs", "README.md"), "index v1\n");
+  git(work, "add", ".");
+  git(work, "commit", "-q", "-m", "base");
+  git(work, "remote", "add", "origin", origin);
+  // An earlier run's branch: adds a draft spec and changes the index.
+  git(work, "checkout", "-q", "-b", "seula/meal-3-copy-ingredients");
+  writeFileSync(join(work, "specs", "copy-ingredients.md"), "# draft\n");
+  writeFileSync(join(work, "specs", "README.md"), "index from the branch\n");
+  git(work, "add", ".");
+  git(work, "commit", "-q", "-m", "draft");
+  git(work, "push", "-q", "origin", "seula/meal-3-copy-ingredients");
+  // Meanwhile the base branch moves on.
+  git(work, "checkout", "-q", "main");
+  writeFileSync(join(work, "specs", "README.md"), "index v2 on main\n");
+  git(work, "commit", "-q", "-am", "main moves on");
+  const envFile = join(d, "env.txt");
+  writeFileSync(envFile, "");
+  const r = spawnSync("bash", ["-eo", "pipefail", "-c", script(EARLIER)], {
+    cwd: work,
+    encoding: "utf8",
+    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, GH_TOKEN: "x", RUN_ID: "MEAL-3", SPEC_DIR: "specs", GITHUB_ENV: envFile },
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const env = Object.fromEntries(readFileSync(envFile, "utf8").trim().split("\n").map((l) => l.split("=")));
+  return { env, work };
+}
+
+test("ticket-to-spec criterion 16: a retry reuses the ticket's branch and gets back only its own draft", { skip: !hasJq && "needs bash, jq and git" }, () => {
+  const { env, work } = earlierRun(["seula/meal-3-copy-ingredients", "seula/meal-30"]);
+  assert.equal(env.BRANCH, "seula/meal-3-copy-ingredients");
+  assert.equal(env.PREVIOUS_SPEC, "specs/copy-ingredients.md");
+  assert.equal(readFileSync(join(work, "specs", "copy-ingredients.md"), "utf8"), "# draft\n");
+  assert.equal(readFileSync(join(work, "specs", "README.md"), "utf8"), "index v2 on main\n", "main's newer index is kept");
+});
+
+test("ticket-to-spec criterion 16: a first run uses seula/<key>, and another ticket's branch is not taken", { skip: !hasJq && "needs bash, jq and git" }, () => {
+  const { env } = earlierRun(["seula/meal-30"]);
+  assert.equal(env.BRANCH, "seula/meal-3");
+  assert.equal(env.PREVIOUS_SPEC ?? "", "");
+});
