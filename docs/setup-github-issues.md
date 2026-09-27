@@ -77,5 +77,6 @@ be changed in `seula.config.json` → `tracker`.
 | "Check out the repo" fails | `SEULA_GH_TOKEN` is missing, expired, or has no Contents access |
 | "Check out seula" fails | The seula repo isn't reachable: make it public, or allow access to it in its Actions settings |
 | "Write the spec" fails to authenticate | `SEULA_ANTHROPIC_API_KEY` is missing or wrong (seula doesn't read a secret named `ANTHROPIC_API_KEY`) |
+| The issue gets "seula failed to run" | A technical failure, not a problem with the issue. Open the run link in the comment; the failed step's log names the cause. Re-run the workflow, or remove the trigger label and add it again |
 | The comment or label step warns | The token lacks Issues: Read and write |
 | The pull request has no CI checks | The branch was pushed with `GITHUB_TOKEN` instead of `SEULA_GH_TOKEN` |

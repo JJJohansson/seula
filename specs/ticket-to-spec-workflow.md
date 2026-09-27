@@ -72,6 +72,15 @@ approving it and merging stay with a person.
     ticket added a spec that is not on the base branch, the agent gets that spec and is told
     to update it, not to write another. If the agent still returns another file, the earlier
     draft is removed, so the pull request holds one spec for the ticket.
+17. A technical failure is not a result about the ticket. A technical failure is a step that
+    fails or is cancelled (a timeout included), Claude exiting with an error (the turn cap
+    included), or the agent returning no valid spec path. The workflow then doesn't change the
+    ticket's state, and posts one comment on the ticket: "seula failed to run", the link to the
+    workflow run, and how to start it again. The comment holds only this fixed text and the
+    link, never the agent's output (criterion 13). The run fails visibly in Actions. When
+    Claude exits with an error or returns no valid spec path, no pull request is opened, even
+    if the agent wrote a file. The agent's own `blocked` (G1's loop limit) is a result, not a
+    failure: it stays with criteria 8 and 9.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -82,8 +91,14 @@ approving it and merging stay with a person.
 - The same ticket triggers again after `needsInput`: the branch is regenerated from the base
   branch, the earlier draft spec is carried over (criterion 16), and the existing pull
   request's description is updated.
-- The agent returns no valid spec path: no pull request; the ticket gets a comment; the run
-  fails visibly.
+- The agent returns no valid spec path: a technical failure (criterion 17).
+- The ticket can't be read, or seula itself can't be checked out: the run fails visibly in
+  Actions, and the ticket gets no comment, because there is no ticket key or no seula to post
+  it with.
+- The secret check stops the run (criterion 13): the failure comment still goes on the ticket,
+  because it holds no agent output.
+- The failure comment itself can't be posted (for example an expired tracker token): the run
+  logs a warning; the run's own failure is still visible in Actions.
 - No `TYPESAFE_API_KEY`: Jev checks are recorded as skipped; the format checks still run.
 - A tracker call fails after the pull request opened: the run logs a warning and keeps the
   pull request.
@@ -135,3 +150,9 @@ approving it and merging stay with a person.
    to read that file), `.claude/rules`, or the repo's own `.claude/skills`; a repo gives the
    agent its spec-driven-development skill with the `sdd-skill-repo` input.
    `test/workflows.test.ts` checks the flag.
+11. Criterion 17 (added 27 Sep 2026): the first real run (plan step 6) failed because Claude
+   Code couldn't start, but the workflow reported it as the ticket needing input: the ticket
+   moved to Needs input with "the spec needs input (blocked). Draft pull request: none", which
+   told its author nothing they could fix. A step that failed outright (for example the sandbox
+   self-test) was the opposite: every later step was skipped and the ticket got nothing. Both
+   now post "seula failed to run" with the run link and leave the ticket where it is.

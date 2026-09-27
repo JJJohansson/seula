@@ -109,5 +109,6 @@ GitHub answers a correct request with **204 No Content**; the rule's audit log s
 | "Check out the repo" fails | `SEULA_GH_TOKEN` is missing or expired |
 | "Check out seula" fails | The seula repo isn't reachable: make it public, or allow access to it in its Actions settings |
 | "Write the spec" fails to authenticate | `SEULA_ANTHROPIC_API_KEY` is missing or wrong (seula doesn't read a secret named `ANTHROPIC_API_KEY`) |
+| The ticket gets "seula failed to run" and stays in **Ready for spec** | A technical failure, not a problem with the ticket. Open the run link in the comment; the failed step's log names the cause. Re-run the workflow, or move the ticket out of **Ready for spec** and back |
 | A comment appears, but the ticket doesn't move | No transition to that status from the current one, or the status names differ (`tracker.states`) |
 | The pull request has no CI checks | The branch was pushed with `GITHUB_TOKEN` instead of `SEULA_GH_TOKEN` |

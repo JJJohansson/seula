@@ -249,22 +249,25 @@ test("ticket-to-spec criterion 9: a review moves the ticket to spec review and l
 
 const hasJq = hasBash && spawnSync("jq", ["--version"]).status === 0;
 
-function readResult(opts: { status: string; g1: string; hasJev?: string; questions?: string[] }): string {
+function readResultOutputs(opts: { status: string; g1: string; hasJev?: string; questions?: string[]; claudeExit?: string; specPath?: string }): Record<string, string> {
   const d = mkdtempSync(join(tmpdir(), "seula-result-"));
   mkdirSync(join(d, "specs"));
   mkdirSync(join(d, ".seula", "runs"), { recursive: true });
   writeFileSync(join(d, "specs", "a.md"), "# A\n");
-  writeFileSync(join(d, "claude.json"), JSON.stringify({ structured_output: { spec_path: "specs/a.md", status: opts.status, questions: opts.questions ?? [], summary: "" } }));
+  writeFileSync(join(d, "claude.json"), JSON.stringify({ structured_output: { spec_path: opts.specPath ?? "specs/a.md", status: opts.status, questions: opts.questions ?? [], summary: "" } }));
   writeFileSync(join(d, ".seula", "runs", "T-1.json"), JSON.stringify({ events: [{ gate: "G1", result: "skipped" }, { gate: "G1", result: opts.g1 }] }));
   writeFileSync(join(d, "out.txt"), "");
   const r = spawnSync("bash", ["-eo", "pipefail", "-c", script("Read the result")], {
     cwd: d,
     encoding: "utf8",
-    env: { PATH: process.env.PATH ?? "", SEULA: "true", RUN_ID: "T-1", RUN_FILE: ".seula/runs/T-1.json", SPEC_DIR: "specs", CLAUDE_EXIT: "0", HAS_JEV: opts.hasJev ?? "true", GITHUB_OUTPUT: join(d, "out.txt") },
+    env: { PATH: process.env.PATH ?? "", SEULA: "true", RUN_ID: "T-1", RUN_FILE: ".seula/runs/T-1.json", SPEC_DIR: "specs", CLAUDE_EXIT: opts.claudeExit ?? "0", HAS_JEV: opts.hasJev ?? "true", GITHUB_OUTPUT: join(d, "out.txt") },
   });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  return /^status=(.*)$/m.exec(readFileSync(join(d, "out.txt"), "utf8"))?.[1] ?? "";
+  const lines = readFileSync(join(d, "out.txt"), "utf8").trim().split("\n");
+  return Object.fromEntries(lines.map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
 }
+
+const readResult = (opts: Parameters<typeof readResultOutputs>[0]): string => readResultOutputs(opts).status ?? "";
 
 test("ticket-to-spec criterion 8: the routing table, run with bash", { skip: !hasJq && "needs bash and jq" }, () => {
   assert.equal(readResult({ status: "ready", g1: "pass" }), "ready");
@@ -273,6 +276,77 @@ test("ticket-to-spec criterion 8: the routing table, run with bash", { skip: !ha
   assert.equal(readResult({ status: "ready", g1: "skipped" }), "needs_input", "a lost Jev key never passes");
   assert.equal(readResult({ status: "ready", g1: "skipped", hasJev: "false" }), "ready");
   assert.equal(readResult({ status: "needs_input", g1: "review", questions: ["q"] }), "needs_input", "open questions go to the author");
+});
+
+// First real run (2026-09-27, MEAL-1): Claude Code couldn't start, and the ticket went to Needs
+// input with "the spec needs input (blocked)", which its author couldn't act on.
+const FAILURE = "Report a failure on the ticket";
+
+test("ticket-to-spec criterion 17: a Claude error or no valid spec path is a failure with no pull request", { skip: !hasJq && "needs bash and jq" }, () => {
+  const crashed = readResultOutputs({ status: "ready", g1: "pass", claudeExit: "1" });
+  assert.equal(crashed.status, "failed", "Claude exiting with an error (the turn cap included)");
+  assert.equal(crashed.spec, "", "no pull request, even if the agent wrote a file");
+  const noPath = readResultOutputs({ status: "ready", g1: "pass", specPath: "" });
+  assert.equal(noPath.status, "failed");
+  assert.equal(noPath.spec, "");
+  assert.equal(readResult({ status: "ready", g1: "pass", specPath: "../outside.md" }), "failed");
+  // G1's loop limit is a result about the spec, not a technical failure (criteria 8-9).
+  assert.equal(readResult({ status: "blocked", g1: "back" }), "blocked");
+});
+
+test("ticket-to-spec criterion 17: a failure gets its own report, and the normal report skips it", () => {
+  const names = stepNames();
+  const failure = names.findIndex((n) => n.startsWith(FAILURE));
+  assert.ok(failure >= 0, "no failure report step");
+  assert.ok(names.findIndex((n) => n.startsWith("Report on the ticket")) < failure, "runs after the normal report");
+  assert.ok(failure < names.findIndex((n) => n === "Summary"), "runs before the summary");
+  const cond = /^ {8}if: (.+)$/m.exec(step(FAILURE))?.[1] ?? "";
+  for (const part of ["failure()", "cancelled()", "steps.result.outputs.status == 'failed'"]) {
+    assert.ok(cond.includes(part), `the condition lacks ${part}`);
+  }
+  assert.match(step("Report on the ticket"), /if: .*steps\.result\.outputs\.status != 'failed'/);
+  assert.match(script("Summary"), /"\$STATUS" = "failed"/);
+});
+
+test("ticket-to-spec criteria 13, 17: the failure report posts no agent output and doesn't move the ticket", () => {
+  const s = step(FAILURE);
+  const run = script(FAILURE);
+  for (const output of ["claude.json", "RUN_FILE", "g0.json", "ticket.json", "SPEC_DIR"]) {
+    assert.ok(!run.includes(output), `reads ${output}`);
+  }
+  assert.doesNotMatch(run, /tracker move/);
+  assert.doesNotMatch(s, /ANTHROPIC_API_KEY|TYPESAFE_API_KEY/);
+});
+
+function reportFailure(env: Record<string, string>) {
+  const d = mkdtempSync(join(tmpdir(), "seula-failure-"));
+  const bin = join(d, "bin");
+  mkdirSync(bin);
+  // A stand-in for seula: records its arguments and the comment it would post.
+  writeFileSync(join(bin, "seula"), `#!/usr/bin/env bash\necho "$*" >> "${d}/calls.txt"\nwhile [ $# -gt 0 ]; do if [ "$1" = --text-file ]; then cat "$2" >> "${d}/posted.txt"; fi; shift; done\n`, { mode: 0o755 });
+  const r = spawnSync("bash", ["-eo", "pipefail", "-c", script(FAILURE)], {
+    cwd: d,
+    encoding: "utf8",
+    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, SEULA: "seula", SEULA_TRACKER: "jira", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "42", ...env },
+  });
+  const read = (f: string) => { try { return readFileSync(join(d, f), "utf8"); } catch { return ""; } };
+  return { r, calls: read("calls.txt"), posted: read("posted.txt") };
+}
+
+test("ticket-to-spec criterion 17: the failure comment says seula failed and links the run", { skip: !hasBash && "needs bash" }, () => {
+  const { r, calls, posted } = reportFailure({ TICKET_KEY: "MEAL-9" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(calls, /^tracker comment --tracker jira --key MEAL-9 --text-file /m);
+  assert.doesNotMatch(calls, /tracker move/);
+  assert.match(posted, /seula failed to run/);
+  assert.ok(posted.includes("https://github.com/o/r/actions/runs/42"));
+  assert.match(posted, /re-run/i, "says how to start it again");
+});
+
+test("ticket-to-spec criterion 17: with no ticket key, the failure report posts nothing and doesn't fail", { skip: !hasBash && "needs bash" }, () => {
+  const { r, calls } = reportFailure({});
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(calls, "");
 });
 
 // Sixth real run (2026-09-27, MEAL-3): the retry started from main, didn't see its own new draft

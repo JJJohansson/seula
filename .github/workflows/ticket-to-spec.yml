@@ -286,16 +286,22 @@ jobs:
           spec="$(jq -r '.structured_output.spec_path // ""' claude.json 2>/dev/null || echo "")"
           status="$(jq -r '.structured_output.status // ""' claude.json 2>/dev/null || echo "")"
           case "$status" in ready|needs_input|blocked) ;; *) status=blocked ;; esac
-          if [ "$CLAUDE_EXIT" != "0" ]; then status=blocked; fi
+          # Criterion 17: a Claude error (the turn cap included) or no valid spec path is a
+          # technical failure, not a result about the ticket. No pull request, even if the agent
+          # wrote a file; the failure report says so on the ticket.
+          if [ "$CLAUDE_EXIT" != "0" ]; then
+            echo "::error::Claude exited with an error (exit $CLAUDE_EXIT)."
+            status=failed
+          fi
           case "$spec" in
             "$SPEC_DIR"/*.md) name="${spec#"$SPEC_DIR"/}" ;;
             *) name="" ;;
           esac
           if ! [[ "$name" =~ ^[a-z0-9][a-z0-9-]*\.md$ ]] || [ ! -f "$spec" ]; then
             echo "::error::The agent returned no valid spec path: '$spec'"
-            spec=""
-            status=blocked
+            status=failed
           fi
+          if [ "$status" = "failed" ]; then spec=""; fi
           # Criterion 16: if the agent wrote another file than the earlier draft, the draft goes,
           # so a pull request never holds two specs for one ticket.
           if [ -n "${PREVIOUS_SPEC:-}" ] && [ -n "$spec" ] && [ "$spec" != "$PREVIOUS_SPEC" ]; then
@@ -426,7 +432,7 @@ jobs:
           git_auth push
 
       - name: Report on the ticket (criterion 9)
-        if: steps.g0.outputs.code == '0'
+        if: steps.g0.outputs.code == '0' && steps.result.outputs.status != 'failed'
         env:
           GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
@@ -461,6 +467,30 @@ jobs:
           $SEULA tracker move --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --state "$state" ||
             echo "::warning::Could not set the ticket to $state"
 
+      - name: Report a failure on the ticket (criterion 17)
+        if: failure() || cancelled() || steps.result.outputs.status == 'failed'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          # Criterion 17: a technical failure says so and leaves the ticket's state alone. The
+          # comment is fixed text and the run link, never the agent's output (criterion 13), so
+          # it is safe to post after the secret check stopped the run.
+          if [ -z "${TICKET_KEY:-}" ]; then
+            echo "::warning::No ticket key, so the failure can't be reported on the ticket."
+            exit 0
+          fi
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            printf 'seula failed to run: %s\n\n' "$run_url"
+            printf 'This is a technical failure, not a problem with the ticket, so the ticket stays where it is.\n'
+            printf 'To try again, re-run the workflow from the link, or start it from the ticket the way you did before.\n'
+          } > failure-comment.md
+          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file failure-comment.md ||
+            echo "::warning::Could not report the failure on the ticket"
+
       - name: Summary
         if: always()
         env:
@@ -471,6 +501,10 @@ jobs:
             $SEULA status 2>/dev/null || echo "No run file."
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$STATUS" = "failed" ]; then
+            echo "::error::seula failed to run; the ticket has a comment with this run's link."
+            exit 1
+          fi
           if [ "$STATUS" = "blocked" ]; then
             echo "::error::The spec run is blocked; see the ticket and the run file."
             exit 1
