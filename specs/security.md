@@ -72,6 +72,10 @@ adopting repo's specs; the trust that a spec pull request was checked by the gat
   trusts that repo.
 - Claude Code has no Dependabot updates when it is installed with `npm install -g`. A person
   bumps its pinned version.
+- The ticket-to-spec workflow installs `bubblewrap` and `socat` with `apt-get`, unpinned. The
+  agent's sandbox needs them (ticket-to-spec criterion 5), and Ubuntu removes old package
+  versions from its archive, so a pinned install would break. They come from Ubuntu's signed
+  archive on GitHub's runner image. This is an exception to criterion 2.
 
 ## OUT OF SCOPE
 - Application security (sessions, CORS, headers and so on): seula has no server.

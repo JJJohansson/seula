@@ -151,6 +151,28 @@ jobs:
       - name: Install Claude Code
         if: steps.g0.outputs.code == '0'
         run: |
+          # Criterion 5: with CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, Claude Code runs every agent
+          # command in a bubblewrap sandbox and won't start without it. socat relays the
+          # sandbox's network traffic. They come from Ubuntu's signed archive, unpinned: an
+          # accepted risk in specs/security.md.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap socat
+          # Ubuntu 24.04 blocks unprivileged user namespaces. Claude Code's documented profile
+          # lets only bwrap create them; the commands it runs stay confined.
+          if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+            sudo tee /etc/apparmor.d/bwrap > /dev/null <<'EOF'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+            include if exists <local/bwrap>
+          }
+          EOF
+            sudo systemctl reload apparmor
+          fi
+          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-user --unshare-pid true ||
+            { echo "::error::bubblewrap can't create a sandbox on this runner"; exit 1; }
           # specs/security.md criterion 2: an exact version (the "stable" channel), at least
           # 2.1.257 for the agent's permission settings. Bump it by hand after checking them;
           # Dependabot doesn't see global installs.
@@ -178,13 +200,18 @@ jobs:
           # command is G1.
           # Criterion 14: only user sources load, so the repo's .claude/settings*.json, .mcp.json,
           # project skills and subagents can't add hooks, env values or permissions.
+          # The sandboxed G1 command may reach only the Jev host from the config (criteria 4-5).
+          jev_host="$($SEULA config | jq -r .jev.endpoint | sed -E 's#^https?://([^/:]+).*#\1#')"
+          [[ "$jev_host" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "::error::Invalid Jev endpoint host: $jev_host"; exit 1; }
+          settings="$(jq -cn --arg jev_host "$jev_host" \
+            '{permissions: {blockReadsOutsideWorkingDirectories: true}, sandbox: {network: {allowedDomains: [$jev_host]}}}')"
           set +e
           claude -p "$prompt" \
             --model "$SEULA_MODEL" \
             --max-turns 40 \
             --setting-sources user \
             --permission-mode dontAsk \
-            --settings '{"permissions":{"blockReadsOutsideWorkingDirectories":true}}' \
+            --settings "$settings" \
             --add-dir "$HOME/.claude/skills" \
             --plugin-dir .seula-tool \
             --allowedTools "Skill,Task,Agent,Edit($SPEC_DIR/**),Bash($SEULA gate g1 *)" \

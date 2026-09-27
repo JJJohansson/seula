@@ -87,6 +87,11 @@ approving it and merging stay with a person.
    events in the run file have Jev results, not `skipped`: the subprocess scrub must leave
    `TYPESAFE_API_KEY` to the G1 command. If it doesn't, criterion 8 opens a draft, not a ready
    pull request.
+6. First real run (2026-09-27, MEAL-1 in mealPlanner): the dispatch, G0, the ticket file and the
+   Jira comment and move worked. Claude Code refused to start: with the subprocess scrub it
+   needs bubblewrap, which the runner lacks. The workflow now installs bubblewrap and socat,
+   adds the documented AppArmor profile for `bwrap` on Ubuntu 24.04, self-tests the sandbox, and
+   lets the sandboxed G1 reach only the Jev host from the config.
 6. Criterion 14 (added 26 Sep 2026): the agent runs with `--setting-sources user`. Under `-p`,
    Claude Code ignores a project's allow rules, but it still runs the project's hooks, applies
    its `env` block, connects its `.mcp.json` servers, and honors a project skill's

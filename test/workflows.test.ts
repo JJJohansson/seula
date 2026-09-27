@@ -166,3 +166,27 @@ test("security criterion 2: Claude Code is installed at an exact version that su
   const atLeast = asNumber(v) >= asNumber(MIN_CLAUDE_CODE);
   assert.ok(atLeast, `Claude Code ${v.join(".")} is older than ${MIN_CLAUDE_CODE.join(".")}`);
 });
+
+test("ticket-to-spec criterion 5: the sandbox for the agent's shell commands can start on the runner", () => {
+  // With CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1, Claude Code runs every agent command in a bubblewrap
+  // sandbox and refuses to start without it (first real run, 2026-09-27).
+  const install = script("Install Claude Code");
+  assert.match(install, /apt-get install -y[^\n]*\bbubblewrap\b/);
+  assert.match(install, /apt-get install -y[^\n]*\bsocat\b/);
+  // Ubuntu 24.04 blocks unprivileged user namespaces; the documented profile unconfines only bwrap.
+  assert.match(install, /kernel\.apparmor_restrict_unprivileged_userns/);
+  assert.match(install, /profile bwrap \/usr\/bin\/bwrap flags=\(unconfined\)/);
+  assert.match(install, /systemctl reload apparmor/);
+  // A self-test fails the step with a clear message instead of a blocked run later.
+  assert.match(install, /bwrap [^\n]*--unshare-user[^\n]*true/);
+  assert.ok(install.indexOf("bubblewrap") < install.indexOf("npm install -g @anthropic-ai/claude-code"));
+});
+
+test("ticket-to-spec criteria 4-5: the sandboxed G1 may reach only the Jev host from the config", () => {
+  const agent = script(AGENT);
+  assert.match(agent, /jq -r \.jev\.endpoint/);
+  assert.match(agent, /allowedDomains:\s*\[\s*\$jev_host\s*\]/);
+  assert.match(agent, /blockReadsOutsideWorkingDirectories:\s*true/);
+  // The host is checked before it goes into the settings.
+  assert.match(agent, /\[\[ "\$jev_host" =~ \^\[A-Za-z0-9\.-\]\+\$ \]\]/);
+});
