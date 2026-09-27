@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 3, 8 and 16, and criteria 20–26, drafted 27 Sep 2026, not approved. Credential errors: the change to criterion 17 and criteria 27–28 drafted 27 Sep 2026, not approved.**
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–26, drafted 27 Sep 2026, not approved. Credential errors: the change to criterion 17 and criteria 27–28 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -25,8 +25,9 @@ approving it and merging stay with a person.
   change on the ticket.
 
 ## ACCEPTANCE CRITERIA
-1. `ticket-to-spec.yml` runs on `workflow_call` with the inputs and secrets above, and checks
-   out the calling repo and seula at `seula-ref`.
+1. `ticket-to-spec.yml` runs on `workflow_call` with the inputs and secrets above. It checks
+   out the calling repo at `base-branch`, also when that is not the repo's default branch, and
+   seula at `seula-ref`.
 2. It reads the ticket with `seula tracker ticket` from the event file. An invalid ticket stops
    the run before any other step.
 3. It runs G0 on the ticket file. When G0 returns back or unsure, it posts G0's asks and notes
@@ -48,9 +49,9 @@ approving it and merging stay with a person.
    its feedback, and states which checks ran.
 8. The pull request is ready for review only when the agent has no open questions and the last
    G1 result of the current round (criterion 22) is pass, skipped because no Jev key is
-   configured, or unsure (review), whatever the agent reports; otherwise it is a draft. When G1 is unsure, the pull request
-   lists the unsure criteria under "Needs your judgement". A pull request that a later run
-   updates follows that run's result.
+   configured, or unsure (review), whatever the agent reports; otherwise it is a draft. When
+   G1 is unsure, the pull request lists the unsure criteria under "Needs your judgement". A
+   pull request that a later run updates follows that run's result.
 9. After the pull request opens, the workflow posts its link on the ticket and sets the ticket
    to `specReview` when the pull request is ready for review (with the unsure criteria, if
    any), or to `needsInput` with the agent's open questions and G1's feedback when not.
@@ -87,9 +88,9 @@ approving it and merging stay with a person.
     first step that failed, or for a Claude error its kind: the turn cap, a refused key
     (criterion 27), another API error, or another error. The comment holds only fixed text,
     the step's name and the link, never the agent's output (criterion 13). The run fails
-    visibly in Actions. When Claude exits with an error or returns no valid spec path, no pull request is opened, even
-    if the agent wrote a file. The agent's own `blocked` (G1's loop limit) is a result, not a
-    failure: it stays with criteria 8 and 9.
+    visibly in Actions. When Claude exits with an error or returns no valid spec path, no pull
+    request is opened, even if the agent wrote a file. The agent's own `blocked` (G1's loop
+    limit) is a result, not a failure: it stays with criteria 8 and 9.
 18. After it reads the ticket and before G0, the workflow adds the ticket's comments to the
     ticket file with `seula tracker comments` ([`trackers.md`](trackers.md) criteria 10–13).
     G0 and the agent read the description and the comments as one ticket. Only this step and
@@ -98,7 +99,9 @@ approving it and merging stay with a person.
 19. seula's comments on a ticket describe what happened and what a person can do next. They
     never address an agent or an automated system, and never tell anyone to run a command. A
     comment that asks for input (criteria 3 and 9) ends with one line: the ticket's author can
-    answer in a comment, then start seula again.
+    answer in a comment, then start seula again. Every comment that seula posts starts with
+    `seula · ` or `seula failed to run`, so that a later run labels it
+    ([`trackers.md`](trackers.md) criterion 11).
 20. Each run for a ticket is one round. Before G0, the workflow looks for the ticket's run
     file: on the branch of the ticket's open pull request (criterion 16) when there is one,
     else on the base branch (a spec pull request for the ticket was merged earlier). When it
@@ -115,7 +118,7 @@ approving it and merging stay with a person.
 23. The workflow doesn't start a new round when nothing is new. Nothing is new when all of
     these are true: the ticket has an open pull request with a valid run file (criteria 20–21);
     the last committed round in that file has a G1 result of pass, back or unsure, or of
-    skipped when no Jev key is configured (as in criterion 8); and the ticket's
+    skipped when no Jev key is configured (as in criterion 8); and the ticket's title, its
     description and its comments that are not labelled `seula` ([`trackers.md`](trackers.md)
     criterion 11) are the same as in the ticket file on that branch. Then the workflow runs
     neither G0 nor Claude and commits nothing. It posts one comment: nothing changed on the
@@ -128,8 +131,8 @@ approving it and merging stay with a person.
     changes the ticket's state.
 25. The pull request shows the round number and the current round's gate results. It lists
     the earlier rounds' gate results under "Earlier rounds (from the run file on `<branch>`)",
-    with the name of the branch that the run file came from. Its
-    cost line gives the total over all rounds and, next to it, the current round's Claude cost.
+    with the name of the branch that the run file came from. Its cost line gives the total
+    over all rounds and, next to it, the current round's Claude cost.
 26. Before it commits the run file, the workflow sets the run file's step and waiting-on to the
     state that the round gives the ticket (criterion 9), with `seula update --state`
     ([`run-files.md`](run-files.md) criterion 13). `seula status` then shows the same next
@@ -194,6 +197,8 @@ approving it and merging stay with a person.
   `TYPESAFE_API_KEY` (criterion 27).
 - Several credentials expire together: the first step that uses one fails, and the reason
   names only that credential.
+- The ticket file on the branch was written before comments were read, so it has no
+  `## Comments` section: it counts as a ticket with no comments (criterion 23).
 - A run file written before rounds existed is round 1 ([`run-files.md`](run-files.md)
   criterion 12).
 

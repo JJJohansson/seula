@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). **Credential errors: criterion 11 drafted 27 Sep 2026, not approved.**
+> **Status:** Approved (26 Sep 2026). **Credential errors: criteria 11–12 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, two short
@@ -53,6 +53,11 @@ repo decides which of its secrets seula gets.
 11. `docs/setup-jira.md` says that when moving a ticket to the trigger status starts no
     workflow run, the Jira automation's audit log shows why, for example GitHub refusing an
     expired dispatch token. seula can't report this, because no run starts.
+12. `docs/troubleshooting.md` has one entry for each step of `ticket-to-spec.yml`, under the
+    step's name as Actions shows it. Each entry says what the step does, what its failure looks
+    like in Actions and on the ticket, and what to check. The page also covers a move that
+    starts no run (criterion 11) and Anthropic credit that has run out. A test fails when a
+    step of the workflow has no entry.
 
 ## OUT OF SCOPE
 - Creating GitHub secrets, Jira automation rules or GitHub labels (the setup guides cover them;
