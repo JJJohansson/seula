@@ -1,6 +1,6 @@
 # FEATURE: Board sync (the ticket follows the spec pull request)
 
-> **Status:** Approved (28 Sep 2026). Unit 1 (trackers criteria 14–15) built 28 Sep 2026; units 2–3 not yet.
+> **Status:** Approved (28 Sep 2026). Unit 1 (trackers criteria 14–15) built 28 Sep 2026; units 2–3 not yet. **The change to criterion 2 and the data schema (the key from the branch name) drafted 28 Sep 2026, not approved:** the MEAL-4 run showed that the branch is named after the run id in lowercase.
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `board-sync.yml`, that keeps a ticket's state in step with
@@ -29,7 +29,9 @@ Done) and for a spec pull request closed without merging are decided later.
 ## DATA SCHEMA
 - Config: `tracker.states.planning` (optional, no default; see [`trackers.md`](trackers.md),
   criterion 15).
-- The spec pull request is recognized by its head branch `seula/<ticket key>` (see
+- The spec pull request is recognized by its head branch: `seula/` and the run id in lowercase,
+  for example `seula/meal-4` (Jira `MEAL-4`) or `seula/gh-42` (GitHub issue 42). A branch from
+  an older seula adds the spec name: `seula/meal-3-copy-ingredients-to-clipboard` (see
   [`ticket-to-spec-workflow.md`](ticket-to-spec-workflow.md), criterion 16).
 
 ## ACCEPTANCE CRITERIA
@@ -37,10 +39,13 @@ Done) and for a spec pull request closed without merging are decided later.
    "ticket state" and "move on merge". Each job does nothing when the pull request's head
    branch doesn't start with `seula/`, or when the pull request comes from a fork, so GitHub
    shows it as skipped.
-2. The ticket key is the head branch name after `seula/`. The branch name reaches the job's
-   scripts only through an environment variable, never inside a `run:` script. A key that
-   doesn't match the tracker's key pattern fails the job with exit 64, and seula calls no
-   tracker API.
+2. The job takes the ticket key from the start of the head branch name after `seula/`. The run
+   id ends at the end of the name, or at the first `-` after its number. Jira: the key is the
+   run id in upper case (`meal-3-copy-ingredients` gives `MEAL-3`). GitHub: the key is the
+   number after `gh-` (`gh-42` gives `42`). The branch name reaches the job's scripts only
+   through an environment variable, never inside a `run:` script. A name that gives no key
+   matching the tracker's key pattern fails the job with exit 64, and seula calls no tracker
+   API.
 3. "ticket state" runs when a pull request is opened, reopened, marked ready for review, or
    gets a new commit. It reads the ticket's state with `seula tracker state` (see
    [`trackers.md`](trackers.md), criterion 14).
@@ -81,6 +86,11 @@ Done) and for a spec pull request closed without merging are decided later.
   70 and names the status ([`trackers.md`](trackers.md), edge cases); the job fails.
 - A pull request from another branch, for example a feature pull request: both jobs are skipped,
   and a required "ticket state" check counts as passed.
+- A pull request on a branch from an older seula, such as
+  `seula/meal-3-copy-ingredients-to-clipboard`: the key is `MEAL-3`, and both jobs work as for
+  a new branch (criterion 2).
+- A `seula/` branch that seula didn't make, such as `seula/notes` or `seula/meal-4x`: it gives
+  no key, so "ticket state" fails with exit 64 and "move on merge" moves nothing.
 - A pull request from a fork, even one whose branch starts with `seula/`: GitHub gives it no
   secrets, and seula never opens one, so both jobs are skipped (criterion 1).
 
