@@ -35,7 +35,9 @@ approving it and merging stay with a person.
    is unsure, or reaches the loop limit.
 5. The agent can edit only files in the spec directory and read only files in the working
    directory and its installed skills. It can't run git or fetch web pages. Its only shell
-   command is seula's G1 gate, and its shell commands can't see the Anthropic key.
+   command is seula's G1 gate, and its shell commands can't see the Anthropic key. They see
+   the Jev key only as a placeholder, which the sandbox replaces with the real key only on
+   requests to the Jev host in the config.
 6. No ticket field appears in a `run:` script: ticket text reaches the gates and the agent only
    as a file. Each secret is given only to the steps that use it. No credential is stored on
    disk while the agent runs.
@@ -92,6 +94,12 @@ approving it and merging stay with a person.
    needs bubblewrap, which the runner lacks. The workflow now installs bubblewrap and socat,
    adds the documented AppArmor profile for `bwrap` on Ubuntu 24.04, self-tests the sandbox, and
    lets the sandboxed G1 reach only the Jev host from the config.
+7. Second real run (2026-09-27, MEAL-1): end to end, a draft pull request and the agent's
+   questions on the ticket (19 turns, $0.89). The scrub also removed `TYPESAFE_API_KEY` from
+   the agent's G1, so Jev was skipped and criterion 8 kept the pull request a draft. The
+   workflow now masks the Jev key for sandboxed commands (TLS-terminating proxy, the real key
+   injected only toward the Jev host) and sets `NODE_USE_ENV_PROXY=1` so Node's fetch uses
+   the sandbox proxy.
 6. Criterion 14 (added 26 Sep 2026): the agent runs with `--setting-sources user`. Under `-p`,
    Claude Code ignores a project's allow rules, but it still runs the project's hooks, applies
    its `env` block, connects its `.mcp.json` servers, and honors a project skill's

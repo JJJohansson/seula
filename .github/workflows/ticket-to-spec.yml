@@ -192,6 +192,9 @@ jobs:
           # Criterion 5: the agent's shell commands don't get the Anthropic key or other
           # credentials, and can't read them from /proc.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          # Sandboxed commands reach the network only through Claude Code's proxy; Node's fetch
+          # (the G1 call to Jev) uses HTTPS_PROXY only with this set.
+          NODE_USE_ENV_PROXY: "1"
         run: |
           prompt="$($SEULA prompt spec-writer --run "$RUN_ID" --ticket "$TICKET_FILE" --seula-cmd "$SEULA")"
           schema='{"type":"object","properties":{"spec_path":{"type":"string"},"status":{"type":"string","enum":["ready","needs_input","blocked"]},"questions":{"type":"array","items":{"type":"string"}},"summary":{"type":"string"}},"required":["spec_path","status","questions","summary"]}'
@@ -201,10 +204,17 @@ jobs:
           # Criterion 14: only user sources load, so the repo's .claude/settings*.json, .mcp.json,
           # project skills and subagents can't add hooks, env values or permissions.
           # The sandboxed G1 command may reach only the Jev host from the config (criteria 4-5).
+          # Its shell sees the Jev key only as a placeholder: the sandbox proxy terminates TLS and
+          # swaps in the real key only on requests to that host (criterion 5).
           jev_host="$($SEULA config | jq -r .jev.endpoint | sed -E 's#^https?://([^/:]+).*#\1#')"
           [[ "$jev_host" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "::error::Invalid Jev endpoint host: $jev_host"; exit 1; }
-          settings="$(jq -cn --arg jev_host "$jev_host" \
-            '{permissions: {blockReadsOutsideWorkingDirectories: true}, sandbox: {network: {allowedDomains: [$jev_host]}}}')"
+          settings="$(jq -cn --arg jev_host "$jev_host" '{
+            permissions: {blockReadsOutsideWorkingDirectories: true},
+            sandbox: {
+              network: {allowedDomains: [$jev_host], tlsTerminate: {}},
+              credentials: {envVars: [{name: "TYPESAFE_API_KEY", mode: "mask", injectHosts: [$jev_host]}]}
+            }
+          }')"
           set +e
           claude -p "$prompt" \
             --model "$SEULA_MODEL" \
@@ -309,7 +319,8 @@ jobs:
           {
             echo "## Summary"
             echo
-            echo "Spec for ${ticket_link:+[$TICKET_KEY]($ticket_link)}${ticket_link:-$TICKET_KEY}: \`$SPEC\`."
+            if [ -n "$ticket_link" ]; then ticket_ref="[$TICKET_KEY]($ticket_link)"; else ticket_ref="$TICKET_KEY"; fi
+            echo "Spec for $ticket_ref: \`$SPEC\`."
             jq -r '.structured_output.summary // ""' claude.json
             echo
             echo "Drafted by Claude from the ticket and checked by [seula](https://github.com/JJJohansson/seula) quality gates. **A person approves the spec and merges.**"
@@ -323,7 +334,7 @@ jobs:
             echo
             jq -r '.events[] | "- **\(.gate)** attempt \(.attempt): \(.result). \(.summary // "")", ((.feedback // [])[] | "  - \(.)")' "$RUN_FILE"
             echo
-            jq -r '"Cost: Claude $\(.cost.claudeUsd), Jev $\(.cost.jevUsd)"' "$RUN_FILE"
+            jq -r '"Cost: Claude $\(.cost.claudeUsd * 100 | round / 100), Jev $\(.cost.jevUsd * 100000 | round / 100000)"' "$RUN_FILE"
             echo
             echo "## Checks"
             echo

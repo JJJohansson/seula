@@ -190,3 +190,21 @@ test("ticket-to-spec criteria 4-5: the sandboxed G1 may reach only the Jev host 
   // The host is checked before it goes into the settings.
   assert.match(agent, /\[\[ "\$jev_host" =~ \^\[A-Za-z0-9\.-\]\+\$ \]\]/);
 });
+
+test("ticket-to-spec criterion 5: the agent's G1 sees the Jev key only as a placeholder that works only toward Jev", () => {
+  // The scrub removed TYPESAFE_API_KEY from the agent's shell, so G1 skipped Jev in CI
+  // (second real run, 2026-09-27). Masking gives the shell a sentinel; the sandbox proxy swaps in
+  // the real key only on requests to the Jev host.
+  const agent = script(AGENT);
+  assert.match(agent, /name: "TYPESAFE_API_KEY", mode: "mask", injectHosts: \[\$jev_host\]/);
+  assert.match(agent, /tlsTerminate: \{\}/);
+  // Node's fetch ignores HTTPS_PROXY unless this is set, and sandboxed traffic goes through the proxy.
+  assert.match(step(AGENT), /NODE_USE_ENV_PROXY: "1"/);
+});
+
+test("ticket-to-spec criterion 7: the pull request links the ticket once and shows rounded costs", () => {
+  const pr = script("Commit and open the pull request");
+  assert.doesNotMatch(pr, /\$\{ticket_link:-/, "a :- expansion prints the link a second time");
+  assert.match(pr, /ticket_ref="\[\$TICKET_KEY\]\(\$ticket_link\)"/);
+  assert.match(pr, /claudeUsd \* 100 \| round \/ 100/);
+});
