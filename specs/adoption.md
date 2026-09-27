@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026)
+> **Status:** Approved (26 Sep 2026). **Credential errors: criterion 11 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, two short
@@ -50,6 +50,9 @@ repo decides which of its secrets seula gets.
    `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`), and the link to the setup guide for the
    chosen tracker.
 10. `init` makes no network calls and never writes secrets.
+11. `docs/setup-jira.md` says that when moving a ticket to the trigger status starts no
+    workflow run, the Jira automation's audit log shows why, for example GitHub refusing an
+    expired dispatch token. seula can't report this, because no run starts.
 
 ## OUT OF SCOPE
 - Creating GitHub secrets, Jira automation rules or GitHub labels (the setup guides cover them;

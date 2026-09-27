@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 3, 8 and 16, and criteria 20–26, drafted 27 Sep 2026, not approved.**
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 3, 8 and 16, and criteria 20–26, drafted 27 Sep 2026, not approved. Credential errors: the change to criterion 17 and criteria 27–28 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -83,8 +83,8 @@ approving it and merging stay with a person.
     included), or the agent returning no valid spec path. The workflow then doesn't change the
     ticket's state, and posts one comment on the ticket: "seula failed to run", the link to the
     workflow run, why it failed, and how to start it again. Why it failed is the name of the
-    first step that failed, or for a Claude error its kind: the turn cap, an API error, or
-    another error. The comment holds only fixed text, the step's name and the link, never the
+    first step that failed, or for a Claude error its kind: the turn cap, a refused key
+    (criterion 27), another API error, or another error. The comment holds only fixed text, the step's name and the link, never the
     agent's output (criterion 13). The run fails visibly in Actions. When
     Claude exits with an error or returns no valid spec path, no pull request is opened, even
     if the agent wrote a file. The agent's own `blocked` (G1's loop limit) is a result, not a
@@ -131,6 +131,18 @@ approving it and merging stay with a person.
     state that the round gives the ticket (criterion 9), with `seula update --state`
     ([`run-files.md`](run-files.md) criterion 13). `seula status` then shows the same next
     action as the board.
+27. When a service refuses a credential, the reason in criterion 17 names that credential.
+    A refused credential is a seula command that exits 77 ([`trackers.md`](trackers.md)
+    criterion 9, [`g1-spec-gate.md`](g1-spec-gate.md) criterion 17), or a Claude API error
+    with HTTP status 401 or 403. The reason names the secret twice: by the name the reusable
+    workflow receives it under, and by the repository secret name that `seula init` prints
+    for it ([`adoption.md`](adoption.md) criterion 9). It says that the credential may be
+    expired or revoked, and that a repository admin can replace the secret. When the check out
+    of the repo fails, the reason names that step and says that its only credential is
+    `SEULA_GH_TOKEN`. Only a secret's name is written, never its value.
+28. The failure report writes the reason as an error on the workflow run and in the run's job
+    summary. It does this also when it can't post on the ticket: when there is no ticket key
+    yet, or when the tracker refused the credential.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -173,6 +185,11 @@ approving it and merging stay with a person.
   comment starts the round.
 - The restored run file comes from a branch that anyone with push access can change. Earlier
   rounds' results are shown as restored and never decide anything (criterion 22).
+- Jev refuses its key in the workflow's own G1 (criterion 15) but not in G0 of the same run:
+  G1 couldn't run, so the pull request stays a draft (criterion 8). The warning names
+  `TYPESAFE_API_KEY` (criterion 27).
+- Several credentials expire together: the first step that uses one fails, and the reason
+  names only that credential.
 - A run file written before rounds existed is round 1 ([`run-files.md`](run-files.md)
   criterion 12).
 

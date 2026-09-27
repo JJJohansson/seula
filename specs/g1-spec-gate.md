@@ -1,6 +1,6 @@
 # FEATURE: G1 spec gate
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. **Credential errors: criterion 17 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 A command that checks one feature spec before it moves on to planning: first deterministic
@@ -52,6 +52,9 @@ intent.
     the command exits 0.
 16. `--record <file>` saves every Jev answer; `--recorded <file>` replays them without network
     access, and the command exits 70 when an answer is missing from the recording.
+17. When Jev answers HTTP 401 or 403, the command exits 77. Its message names
+    `TYPESAFE_API_KEY` and says that the key may be expired or revoked. It never prints the
+    key's value.
 
 ## OUT OF SCOPE
 - Rewriting criteria; the writing agent does that.
@@ -60,5 +63,6 @@ intent.
 
 ## EDGE CASES
 - A spec with no criteria: a format error, and Jev is not called.
-- Jev answers HTTP 429 or 529: two retries with backoff; any other HTTP error exits 70.
+- Jev answers HTTP 429 or 529: two retries with backoff; 401 and 403 exit 77 (criterion 17);
+  any other HTTP error exits 70.
 - Windows line endings parse the same as Unix line endings.

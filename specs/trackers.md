@@ -1,6 +1,6 @@
 # FEATURE: Issue tracker adapters (Jira, GitHub Issues)
 
-> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18.
+> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. **Credential errors: the change to criterion 9 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 seula reads tickets from, and reports back to, an issue tracker through a small adapter. Two
@@ -50,7 +50,11 @@ another tracker later touches one file.
 8. Credentials come only from environment variables: Jira `JIRA_BASE_URL`, `JIRA_EMAIL`,
    `JIRA_API_TOKEN`; GitHub `GITHUB_TOKEN` and `GITHUB_REPOSITORY`. A `JIRA_BASE_URL` that
    doesn't start with `https://` is rejected.
-9. A failed tracker API call exits 70 with the HTTP status and the tracker's message.
+9. A failed tracker API call exits 70 with the HTTP status and the tracker's message. When the
+   tracker answers HTTP 401 or 403, the command exits 77 instead. Its message names the
+   credential it sent (Jira: `JIRA_EMAIL` and `JIRA_API_TOKEN`; GitHub: `GITHUB_TOKEN`) and
+   says that the credential may be expired, revoked, or missing a permission. It never prints
+   the credential's value.
 10. `seula tracker comments --key <key> --append <file>` reads the ticket's comments from the
     tracker's REST API and adds them to the end of the ticket file, under a heading
     `## Comments`, oldest first. Each comment gets a heading line with its date, its time (UTC)
@@ -82,6 +86,8 @@ another tracker later touches one file.
   nothing about how it is checked (criterion 11).
 - The comments API fails, or needs a credential that is not set: `comments` exits 70 or 64, and
   writes nothing to the ticket file.
+- GitHub answers 403 for a rate limit (`x-ratelimit-remaining: 0` or a `retry-after` header):
+  that is not a refused credential, so the command exits 70 (criterion 9).
 
 ## PLAN
 1. `src/trackers/types.ts` (the interface), `jira.ts`, `github.ts`; `fetch`-based, no

@@ -1,6 +1,6 @@
 # FEATURE: G0 ticket gate
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 11 approved and built 27 Sep 2026.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 11 approved and built 27 Sep 2026. **Credential errors: criterion 12 drafted 27 Sep 2026, not approved.**
 
 ## OVERVIEW
 A command that checks whether a ticket holds enough information to write a spec from, before
@@ -43,6 +43,8 @@ reviewing a spec built on a guess.
     together, so an answer in a comment can make the ticket pass. The default `contradiction`
     question counts a later comment that changes an earlier requirement as a replacement, not
     as a conflict.
+12. When Jev answers HTTP 401 or 403, `gate g0` exits 77 with the same message as G1
+    ([`g1-spec-gate.md`](g1-spec-gate.md) criterion 17).
 
 ## OUT OF SCOPE
 - Posting to the issue tracker; the workflow does that.
