@@ -187,3 +187,25 @@ test("config prints the effective configuration", () => {
   assert.equal(cfg.tracker.type, "jira");
   assert.equal(cfg.maxBacks, 2);
 });
+
+test("run-files criterion 10: update --claude-result stores the breakdown, and a bad file stores nothing but keeps the rest", () => {
+  const d = workdir();
+  run(["gate", "g1", "good.md", "--run", "WEB-6"], d);
+  writeFileSync(join(d, "claude.json"), JSON.stringify({ total_cost_usd: 0.5, num_turns: 12, duration_ms: 60000, result: "text" }));
+  assert.equal(run(["update", "--run", "WEB-6", "--claude-result", "claude.json"], d).code, 0);
+  let runFile = JSON.parse(readFileSync(join(d, ".seula", "runs", "WEB-6.json"), "utf8"));
+  assert.equal(runFile.cost.claudeUsd, 0.5);
+  assert.equal(runFile.cost.claudeRuns[0].turns, 12);
+
+  writeFileSync(join(d, "broken.json"), "Claude Code refused to start");
+  const r = run(["update", "--run", "WEB-6", "--claude-result", "broken.json", "--pr-url", "https://github.com/o/r/pull/8"], d);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, /broken\.json/);
+  runFile = JSON.parse(readFileSync(join(d, ".seula", "runs", "WEB-6.json"), "utf8"));
+  assert.equal(runFile.cost.claudeRuns.length, 1, "nothing stored from the bad file");
+  assert.equal(runFile.links.pr, "https://github.com/o/r/pull/8", "the other options still apply");
+  assert.equal(run(["update", "--run", "WEB-6", "--claude-result", "missing.json"], d).code, 0);
+
+  // Both would count one run's cost twice.
+  assert.equal(run(["update", "--run", "WEB-6", "--claude-result", "claude.json", "--claude-usd", "0.5"], d).code, 64);
+});

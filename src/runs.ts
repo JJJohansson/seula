@@ -30,8 +30,66 @@ export interface RunFile {
   blocked?: string;
   events: GateEvent[];
   links: { ticket?: string; pr?: string; design?: string };
-  cost: { claudeUsd: number; jevUsd: number };
+  cost: { claudeUsd: number; jevUsd: number; claudeRuns?: ClaudeRun[] };
   updatedAt: string;
+}
+
+export interface ModelUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  usd?: number;
+}
+
+/** Where one Claude run's cost went (run-files criterion 10). Each field only when Claude reported it. */
+export interface ClaudeRun {
+  at: string;
+  usd?: number;
+  turns?: number;
+  durationMs?: number;
+  models?: Record<string, ModelUsage>;
+}
+
+const MODEL_NAME = /^[A-Za-z0-9._\-[\]]{1,100}$/;
+
+/** A finite, non-negative number, or nothing. */
+function amount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+/** Keeps only the defined fields, so a missing value stays missing rather than becoming null. */
+function defined<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+}
+
+/**
+ * Reads Claude Code's JSON output. It is the agent's output, so only numbers and model names are
+ * kept: never its text (ticket-to-spec criterion 13 scans the run file, but nothing should need it).
+ */
+export function claudeRunFromOutput(output: unknown, now: Date = new Date()): ClaudeRun {
+  const o = typeof output === "object" && output !== null ? (output as Record<string, unknown>) : {};
+  const models: Record<string, ModelUsage> = {};
+  const usage = typeof o.modelUsage === "object" && o.modelUsage !== null ? (o.modelUsage as Record<string, unknown>) : {};
+  for (const [name, raw] of Object.entries(usage)) {
+    if (!MODEL_NAME.test(name) || typeof raw !== "object" || raw === null) continue;
+    const m = raw as Record<string, unknown>;
+    const kept = defined({
+      inputTokens: amount(m.inputTokens),
+      outputTokens: amount(m.outputTokens),
+      cacheReadTokens: amount(m.cacheReadInputTokens),
+      cacheWriteTokens: amount(m.cacheCreationInputTokens),
+      usd: amount(m.costUSD),
+    });
+    if (Object.keys(kept).length > 0) models[name] = kept;
+  }
+  return defined({
+    at: now.toISOString(),
+    usd: amount(o.total_cost_usd),
+    turns: amount(o.num_turns),
+    durationMs: amount(o.duration_ms),
+    models: Object.keys(models).length > 0 ? models : undefined,
+  });
 }
 
 /** Where a feature goes after each gate passes. */
@@ -127,13 +185,17 @@ export function appendEvent(
 export function updateRun(
   runsDir: string,
   id: string,
-  patch: { links?: RunFile["links"]; claudeUsd?: number; title?: string },
+  patch: { links?: RunFile["links"]; claudeUsd?: number; claudeRun?: ClaudeRun; title?: string },
   now: Date = new Date(),
 ): RunFile {
   const run = readRun(runsDir, id);
   if (!run) throw new Error(`No run file for "${id}" in ${runsDir}.`);
   if (patch.links) run.links = { ...run.links, ...patch.links };
   if (patch.claudeUsd) run.cost.claudeUsd += patch.claudeUsd;
+  if (patch.claudeRun) {
+    run.cost.claudeRuns = [...(run.cost.claudeRuns ?? []), patch.claudeRun];
+    run.cost.claudeUsd += patch.claudeRun.usd ?? 0;
+  }
   if (patch.title) run.title = patch.title;
   run.updatedAt = now.toISOString();
   writeFileSync(runPath(runsDir, id), `${JSON.stringify(run, null, 2)}\n`);

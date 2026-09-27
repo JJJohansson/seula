@@ -9,7 +9,7 @@ import { type JevSpecResult, feedbackLines, jevSpec } from "./gates/jevSpec.ts";
 import { type JevTicketResult, jevTicket, wordCount } from "./gates/jevTicket.ts";
 import { type DecisionModel, JevHttpModel, RecordedModel, RecordingModel } from "./jev/model.ts";
 import type { Decision } from "./routing.ts";
-import { type EventResult, type GateId, type RunFile, appendEvent, readRun, readRuns, updateRun } from "./runs.ts";
+import { type ClaudeRun, type EventResult, type GateId, type RunFile, appendEvent, claudeRunFromOutput, readRun, readRuns, updateRun } from "./runs.ts";
 import { type ParsedSpec, parseSpec } from "./spec.ts";
 import { init, initReport } from "./init.ts";
 import { renderSpecWriterPrompt } from "./prompts.ts";
@@ -26,7 +26,7 @@ Usage:
   seula check-spec <spec.md>…    G1 format rules only (no model); several specs allowed
   seula jev-spec <spec.md>       G1 Jev questions only
   seula status                   Where each feature is, gate by gate
-  seula update --run <id>        Add --claude-usd <n>, --ticket-url <url> or --pr-url <url> to a run
+  seula update --run <id>        Add --claude-usd <n> or --claude-result <file>, --ticket-url <url> or --pr-url <url> to a run
   seula calibrate <labels.json>  Pick Jev cut-offs from labeled examples
 
   seula init --tracker <jira|github>   Set seula up in this repo (config + workflows)
@@ -69,6 +69,7 @@ interface Options {
   run?: string;
   title?: string;
   "claude-usd"?: string;
+  "claude-result"?: string;
   "ticket-url"?: string;
   "pr-url"?: string;
   ticket?: string;
@@ -183,14 +184,17 @@ async function main(argv: string[]): Promise<number> {
     }
 
     case "update": {
-      const id = need(opts.run, "update --run <id> [--claude-usd <n>] [--ticket-url <url>] [--pr-url <url>]");
+      const id = need(opts.run, "update --run <id> [--claude-usd <n> | --claude-result <file>] [--ticket-url <url>] [--pr-url <url>]");
       const claudeUsd = opts["claude-usd"] === undefined ? undefined : Number(opts["claude-usd"]);
       if (claudeUsd !== undefined && !(claudeUsd >= 0)) throw new UsageError("--claude-usd must be a non-negative number.");
+      // Both would count one run's cost twice.
+      if (claudeUsd !== undefined && opts["claude-result"]) throw new UsageError("Use --claude-usd or --claude-result, not both.");
       const links = {
         ...(opts["ticket-url"] ? { ticket: httpsUrl(opts["ticket-url"]) } : {}),
         ...(opts["pr-url"] ? { pr: httpsUrl(opts["pr-url"]) } : {}),
       };
-      const run = updateRun(config.runsDir, id, { claudeUsd, links, title: opts.title });
+      const claudeRun = opts["claude-result"] ? readClaudeResult(opts["claude-result"]) : undefined;
+      const run = updateRun(config.runsDir, id, { claudeUsd, claudeRun, links, title: opts.title });
       out(`Updated ${id}.`, run);
       return 0;
     }
@@ -339,6 +343,7 @@ function parse(argv: string[]) {
       run: { type: "string" },
       title: { type: "string" },
       "claude-usd": { type: "string" },
+      "claude-result": { type: "string" },
       "ticket-url": { type: "string" },
       "pr-url": { type: "string" },
       ticket: { type: "string" },
@@ -362,6 +367,16 @@ function parse(argv: string[]) {
       help: { type: "boolean", short: "h", default: false },
     },
   });
+}
+
+/** Claude Code's JSON output, or nothing with a warning: a crashed run may leave no JSON (run-files edge case). */
+function readClaudeResult(file: string): ClaudeRun | undefined {
+  try {
+    return claudeRunFromOutput(JSON.parse(readFileSync(file, "utf8")));
+  } catch {
+    process.stderr.write(`Warning: ${file} is missing or not JSON; no Claude cost stored from it.\n`);
+    return undefined;
+  }
 }
 
 function httpsUrl(value: string): string {

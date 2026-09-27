@@ -1,6 +1,6 @@
 # FEATURE: Run files and status
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved 27 Sep 2026, being built.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026.
 
 ## OVERVIEW
 Every gate result for a feature is appended to one JSON file, and `seula status` shows where

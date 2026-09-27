@@ -545,3 +545,9 @@ test("ticket-to-spec criteria 17-18: a failure to read the comments is a technic
   assert.ok(reportedSteps().some((s) => COMMENTS.startsWith(s.name) || s.name.startsWith(COMMENTS)), "the failure report knows the step");
   assert.equal(reportedSteps()[0]?.variable, "OUT_COMMENTS", "the first step that can fail after the ticket is read");
 });
+
+test("ticket-to-spec criterion 11: the workflow stores Claude's cost with its breakdown", () => {
+  const result = script("Read the result");
+  assert.ok(result.includes('$SEULA update --run "$RUN_ID" --claude-result claude.json'));
+  assert.doesNotMatch(result, /--claude-usd/, "the breakdown carries the total");
+});

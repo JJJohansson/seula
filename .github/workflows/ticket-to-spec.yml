@@ -300,8 +300,8 @@ jobs:
           CLAUDE_EXIT: ${{ steps.claude.outputs.code }}
           HAS_JEV: ${{ secrets.TYPESAFE_API_KEY != '' }}
         run: |
-          cost="$(jq -r '.total_cost_usd // 0' claude.json 2>/dev/null || echo 0)"
-          $SEULA update --run "$RUN_ID" --claude-usd "$cost" || echo "::warning::Cost not stored"
+          # Criterion 11: the cost with its breakdown (turns, duration, tokens and cost per model).
+          $SEULA update --run "$RUN_ID" --claude-result claude.json || echo "::warning::Cost not stored"
           spec="$(jq -r '.structured_output.spec_path // ""' claude.json 2>/dev/null || echo "")"
           status="$(jq -r '.structured_output.status // ""' claude.json 2>/dev/null || echo "")"
           case "$status" in ready|needs_input|blocked) ;; *) status=blocked ;; esac
