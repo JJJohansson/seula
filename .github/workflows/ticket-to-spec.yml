@@ -188,13 +188,10 @@ jobs:
         if: steps.g0.outputs.code == '0'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
           # Criterion 5: the agent's shell commands don't get the Anthropic key or other
-          # credentials, and can't read them from /proc.
+          # credentials, and can't read them from /proc. No Jev key here (criterion 6): the
+          # agent's G1 checks the format, and the next step runs G1 with Jev (criterion 15).
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          # Sandboxed commands reach the network only through Claude Code's proxy; Node's fetch
-          # (the G1 call to Jev) uses HTTPS_PROXY only with this set.
-          NODE_USE_ENV_PROXY: "1"
         run: |
           prompt="$($SEULA prompt spec-writer --run "$RUN_ID" --ticket "$TICKET_FILE" --seula-cmd "$SEULA")"
           schema='{"type":"object","properties":{"spec_path":{"type":"string"},"status":{"type":"string","enum":["ready","needs_input","blocked"]},"questions":{"type":"array","items":{"type":"string"}},"summary":{"type":"string"}},"required":["spec_path","status","questions","summary"]}'
@@ -203,18 +200,8 @@ jobs:
           # command is G1.
           # Criterion 14: only user sources load, so the repo's .claude/settings*.json, .mcp.json,
           # project skills and subagents can't add hooks, env values or permissions.
-          # The sandboxed G1 command may reach only the Jev host from the config (criteria 4-5).
-          # Its shell sees the Jev key only as a placeholder: the sandbox proxy terminates TLS and
-          # swaps in the real key only on requests to that host (criterion 5).
-          jev_host="$($SEULA config | jq -r .jev.endpoint | sed -E 's#^https?://([^/:]+).*#\1#')"
-          [[ "$jev_host" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "::error::Invalid Jev endpoint host: $jev_host"; exit 1; }
-          settings="$(jq -cn --arg jev_host "$jev_host" '{
-            permissions: {blockReadsOutsideWorkingDirectories: true},
-            sandbox: {
-              network: {allowedDomains: [$jev_host], tlsTerminate: {}},
-              credentials: {envVars: [{name: "TYPESAFE_API_KEY", mode: "mask", injectHosts: [$jev_host]}]}
-            }
-          }')"
+          # The sandboxed commands get no network: the agent's G1 has no Jev key, so it needs none.
+          settings='{"permissions":{"blockReadsOutsideWorkingDirectories":true}}'
           set +e
           claude -p "$prompt" \
             --model "$SEULA_MODEL" \
@@ -230,6 +217,28 @@ jobs:
             --json-schema "$schema" > claude.json
           echo "code=$?" >> "$GITHUB_OUTPUT"
           jq '{is_error, num_turns, total_cost_usd, structured_output}' claude.json || cat claude.json
+
+      - name: G1 · the workflow's own check (criteria 8, 15)
+        if: steps.g0.outputs.code == '0'
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: |
+          # Criterion 15: the agent's G1 checks only the format. The workflow runs G1 with Jev on
+          # the spec the agent returned, and records it in the run file; criterion 8 reads this
+          # result, and its feedback goes on the pull request and the ticket.
+          spec="$(jq -r '.structured_output.spec_path // ""' claude.json 2>/dev/null || echo "")"
+          name="${spec#"$SPEC_DIR"/}"
+          if [[ "$spec" != "$SPEC_DIR"/* || ! "$name" =~ ^[a-z0-9][a-z0-9-]*\.md$ || ! -f "$spec" ]]; then
+            echo "No valid spec path from the agent; the next step reports it."
+            exit 0
+          fi
+          set +e
+          $SEULA gate g1 "$spec" --run "$RUN_ID" --ticket "$TICKET_FILE"
+          code=$?
+          set -e
+          # back (1), unsure (2) and the loop limit (3) are results. An error leaves the agent's
+          # skipped G1 as the last result, so criterion 8 keeps the pull request a draft.
+          if [ "$code" -ge 64 ]; then echo "::warning::G1 could not run (exit $code); the pull request stays a draft."; fi
 
       - name: Read the result (criteria 8, 11)
         id: result
@@ -374,6 +383,9 @@ jobs:
             {
               printf 'seula · the spec needs input (%s). Draft pull request: %s\n\n' "$STATUS" "${PR_URL:-none}"
               jq -r '(.structured_output.questions // []) | map("- " + .) | join("\n")' claude.json 2>/dev/null || true
+              # Criterion 9: what G1 (the workflow's own check, criterion 15) found in the criteria.
+              feedback="$(jq -r '[.events[] | select(.gate == "G1")] | last | .feedback // [] | map("- " + .) | join("\n")' "$RUN_FILE" 2>/dev/null || true)"
+              if [ -n "$feedback" ]; then printf '\n\nG1 found these criteria unclear or not testable:\n%s\n' "$feedback"; fi
             } > comment.md
             state=needsInput
           fi

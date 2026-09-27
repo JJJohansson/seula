@@ -182,24 +182,40 @@ test("ticket-to-spec criterion 5: the sandbox for the agent's shell commands can
   assert.ok(install.indexOf("bubblewrap") < install.indexOf("npm install -g @anthropic-ai/claude-code"));
 });
 
-test("ticket-to-spec criteria 4-5: the sandboxed G1 may reach only the Jev host from the config", () => {
+test("ticket-to-spec criteria 5-6: the agent's step gets no Jev key and its commands no network", () => {
+  // Masking the key needs the sandbox proxy to terminate TLS, which was unavailable on the runner
+  // (third real run, 2026-09-27). The key is removed instead; the workflow runs G1 with Jev itself.
+  // Criterion 6: the agent's step no longer uses Jev, so it doesn't get the key at all.
+  assert.doesNotMatch(step(AGENT), /TYPESAFE_API_KEY/);
   const agent = script(AGENT);
-  assert.match(agent, /jq -r \.jev\.endpoint/);
-  assert.match(agent, /allowedDomains:\s*\[\s*\$jev_host\s*\]/);
-  assert.match(agent, /blockReadsOutsideWorkingDirectories:\s*true/);
-  // The host is checked before it goes into the settings.
-  assert.match(agent, /\[\[ "\$jev_host" =~ \^\[A-Za-z0-9\.-\]\+\$ \]\]/);
+  assert.match(agent, /blockReadsOutsideWorkingDirectories/);
+  assert.doesNotMatch(agent, /allowedDomains|tlsTerminate|"mask"|jev_host/);
+  assert.doesNotMatch(step(AGENT), /NODE_USE_ENV_PROXY/);
 });
 
-test("ticket-to-spec criterion 5: the agent's G1 sees the Jev key only as a placeholder that works only toward Jev", () => {
-  // The scrub removed TYPESAFE_API_KEY from the agent's shell, so G1 skipped Jev in CI
-  // (second real run, 2026-09-27). Masking gives the shell a sentinel; the sandbox proxy swaps in
-  // the real key only on requests to the Jev host.
-  const agent = script(AGENT);
-  assert.match(agent, /name: "TYPESAFE_API_KEY", mode: "mask", injectHosts: \[\$jev_host\]/);
-  assert.match(agent, /tlsTerminate: \{\}/);
-  // Node's fetch ignores HTTPS_PROXY unless this is set, and sandboxed traffic goes through the proxy.
-  assert.match(step(AGENT), /NODE_USE_ENV_PROXY: "1"/);
+const OWN_G1 = "G1 · the workflow's own check";
+
+test("ticket-to-spec criterion 15: after the agent, the workflow runs G1 with the Jev key on the returned spec", () => {
+  const names = stepNames();
+  const own = names.findIndex((n) => n.startsWith(OWN_G1));
+  assert.ok(own >= 0, "no workflow G1 step");
+  assert.ok(names.findIndex((n) => n.startsWith(AGENT)) < own, "must run after the agent");
+  assert.ok(own < names.findIndex((n) => n.startsWith("Read the result")), "must run before the result is read");
+  const s = step(OWN_G1);
+  assert.match(s, /TYPESAFE_API_KEY: \$\{\{ secrets\.TYPESAFE_API_KEY \}\}/);
+  assert.doesNotMatch(s, /ANTHROPIC_API_KEY|SEULA_GH_TOKEN|JIRA_/);
+  const run = script(OWN_G1);
+  // It records the result in the run file, so criterion 8 reads it as the last G1 result.
+  assert.ok(run.includes('$SEULA gate g1 "$spec" --run "$RUN_ID" --ticket "$TICKET_FILE"'));
+  // Only a valid spec path in the spec directory is checked.
+  assert.ok(run.includes("^[a-z0-9][a-z0-9-]*\\.md$"));
+  // back (1), unsure (2) and the loop limit (3) are results, not step failures.
+  assert.ok(run.includes("set +e"));
+});
+
+test("ticket-to-spec criterion 9: when G1 sends the spec back, its feedback goes on the ticket too", () => {
+  const report = script("Report on the ticket");
+  assert.ok(report.includes('[.events[] | select(.gate == "G1")] | last | .feedback'));
 });
 
 test("ticket-to-spec criterion 7: the pull request links the ticket once and shows rounded costs", () => {
