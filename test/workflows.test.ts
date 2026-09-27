@@ -643,3 +643,62 @@ test("ticket-to-spec criterion 11: the workflow stores Claude's cost with its br
   assert.ok(result.includes('$SEULA update --run "$RUN_ID" --claude-result claude.json'));
   assert.doesNotMatch(result, /--claude-usd/, "the breakdown carries the total");
 });
+
+// Adoption criteria 11-12: the failure report names a step (criterion 17), so a person looks it
+// up by that name. The page must follow the workflow when steps are added or renamed.
+const DOCS = join(import.meta.dirname, "..", "docs");
+const readDoc = (name: string): string => {
+  try {
+    return readFileSync(join(DOCS, name), "utf8").replace(/\r\n/g, "\n");
+  } catch {
+    return "";
+  }
+};
+/** The page's `### ` entries: their headings and their text up to the next heading. */
+function troubleshootingEntries(): { heading: string; text: string }[] {
+  const parts = readDoc("troubleshooting.md").split(/^(?=#{2,3} )/m);
+  return parts.filter((p) => p.startsWith("### ")).map((p) => ({ heading: p.slice(4, p.indexOf("\n")).trim(), text: p }));
+}
+
+test("adoption criterion 12: every step of ticket-to-spec.yml has an entry in docs/troubleshooting.md, under its Actions name", () => {
+  const headings = troubleshootingEntries().map((e) => e.heading);
+  for (const name of stepNames()) assert.ok(headings.includes(name), `no entry for the step "${name}"`);
+});
+
+test("adoption criterion 12: the page has no entry for a step that no longer exists", () => {
+  const names = stepNames();
+  const entries = troubleshootingEntries();
+  assert.ok(entries.length > 0, "the page has entries");
+  for (const { heading } of entries) assert.ok(names.includes(heading), `"${heading}" is not a step of the workflow`);
+});
+
+test("adoption criterion 12: every entry says what the step does, how its failure looks, and what to check", () => {
+  const entries = troubleshootingEntries();
+  assert.ok(entries.length > 0, "the page has entries");
+  for (const { heading, text } of entries) {
+    for (const label of ["**What it does:**", "**When it fails:**", "**What to check:**"]) {
+      assert.ok(text.includes(label), `"${heading}" lacks ${label}`);
+    }
+  }
+});
+
+test("adoption criterion 12: the page covers a move that starts no run and Anthropic credit that has run out", () => {
+  const page = readDoc("troubleshooting.md");
+  assert.match(page, /^## .*starts no run/m);
+  assert.match(page, /audit log/);
+  assert.match(page, /^## .*credit/im);
+});
+
+test("adoption criterion 11: the Jira setup guide points to the automation's audit log when a move starts no run", () => {
+  const row = readDoc("setup-jira.md").split("\n").find((l) => /starts no run/i.test(l)) ?? "";
+  assert.match(row, /audit log/);
+  assert.match(row, /dispatch token/);
+});
+
+test("adoption criterion 12: the setup guides link to the troubleshooting page instead of repeating its step rows", () => {
+  for (const guide of ["setup-jira.md", "setup-github-issues.md"]) {
+    const text = readDoc(guide);
+    assert.match(text, /\]\(troubleshooting\.md\)/, `${guide} doesn't link to the page`);
+    assert.doesNotMatch(text, /^\| "(Check out the repo|Write the spec)" fails/m, `${guide} repeats a step row`);
+  }
+});

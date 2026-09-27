@@ -106,11 +106,8 @@ GitHub answers a correct request with **204 No Content**; the rule's audit log s
 
 | Symptom | Likely cause |
 |---|---|
-| The rule's audit log shows 401 or 404 | The dispatch token is wrong, expired, lacks Contents write, or has no access to the repo |
+| Moving a ticket starts no run | Open the rule's audit log. 401: GitHub refused the dispatch token (wrong or expired). 404: a wrong repository, or a token without access to it or without Contents write. seula can't report this, because no run starts |
 | 204, but no workflow run | The caller workflow isn't on the default branch, or `event_type` isn't `seula-ticket` |
-| "Check out the repo" fails | `SEULA_GH_TOKEN` is missing or expired |
-| "Check out seula" fails | The seula repo isn't reachable: make it public, or allow access to it in its Actions settings |
-| "Write the spec" fails to authenticate | `SEULA_ANTHROPIC_API_KEY` is missing or wrong (seula doesn't read a secret named `ANTHROPIC_API_KEY`) |
-| The ticket gets "seula failed to run" and stays in **Ready for spec** | A technical failure, not a problem with the ticket. The comment says which step failed, or why Claude stopped; that step's log in the linked run has the details. Re-run the workflow, or move the ticket out of **Ready for spec** and back |
+| A step fails, or the ticket gets "seula failed to run" | See [troubleshooting](troubleshooting.md): one entry for each step, under its name in Actions. A technical failure leaves the ticket in **Ready for spec**; move it out and back to start seula again |
 | A comment appears, but the ticket doesn't move | No transition to that status from the current one, or the status names differ (`tracker.states`) |
 | The pull request has no CI checks | The branch was pushed with `GITHUB_TOKEN` instead of `SEULA_GH_TOKEN` |
