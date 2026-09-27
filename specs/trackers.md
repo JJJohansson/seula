@@ -1,6 +1,6 @@
 # FEATURE: Issue tracker adapters (Jira, GitHub Issues)
 
-> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. Credential errors: the change to criterion 9 approved and built 27 Sep 2026.
+> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. Credential errors: the change to criterion 9 approved and built 27 Sep 2026. **Board sync: the changes to criteria 1 and 6, and criteria 14–15, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)).
 
 ## OVERVIEW
 seula reads tickets from, and reports back to, an issue tracker through a small adapter. Two
@@ -21,15 +21,16 @@ another tracker later touches one file.
 
 ## DATA SCHEMA
 - Config: `tracker.type` (`jira` | `github`); `tracker.states.needsInput` and
-  `tracker.states.specReview` (Jira status names, or GitHub label names);
+  `tracker.states.specReview`, and the optional `tracker.states.planning` (Jira status names,
+  or GitHub label names);
   `tracker.maxComments` (default 30) and `tracker.maxCommentChars` (default 20000).
 - Ticket: `key`, `runId`, `title`, `body`, `url`.
 - Comment: `author`, `created`, `body`, `fromSeula`.
 
 ## ACCEPTANCE CRITERIA
-1. Each adapter provides four operations: read a ticket from the trigger event, read a ticket's
-   comments, add a comment to a ticket, and set a ticket's state to `needsInput` or
-   `specReview`.
+1. Each adapter provides five operations: read a ticket from the trigger event, read a ticket's
+   comments, add a comment to a ticket, read a ticket's state, and set a ticket's state to
+   `needsInput`, `specReview` or `planning`.
 2. `seula tracker ticket --event <file> --out <file>` writes the ticket file (title, source URL,
    body) and prints a JSON line with `key` and `runId`. It exits 64 when the event holds no
    ticket, or when the key doesn't match the adapter's key pattern.
@@ -41,7 +42,7 @@ another tracker later touches one file.
 5. `seula tracker comment --key <key> --text-file <file>` adds the file's text as a comment.
    The Jira adapter uses the Jira Cloud REST API; the GitHub adapter uses the GitHub REST API
    for the current repository.
-6. `seula tracker move --key <key> --state <needsInput|specReview>` sets the state. Jira: it
+6. `seula tracker move --key <key> --state <needsInput|specReview|planning>` sets the state. Jira: it
    applies the transition whose target status name matches the configured name, ignoring case.
    GitHub: it removes the other configured state labels and the trigger label, then adds the
    configured label.
@@ -68,6 +69,14 @@ another tracker later touches one file.
     first, and one line says how many were left out. A comment is never cut in the middle; a
     single comment longer than the character limit is left out as well.
 13. A ticket with no comments gets `## Comments` and the line "No comments."
+14. `seula tracker state --key <key>` reads the ticket's state and prints a JSON line with `key`,
+    `status` and `state`. Jira: `status` is the ticket's status name. GitHub: `status` is the
+    first configured state label on the issue, or `null` when it has none. `state` is the
+    configured state (`needsInput`, `specReview` or `planning`) whose name matches `status`,
+    ignoring case, or `null`. With `--fail-on <state>`, the command exits 1 when the ticket is
+    in that state, and its message names the key and the state.
+15. `planning` has no default. When `tracker.states.planning` is not set, `move --state
+    planning` changes nothing, says that the setting is not set, and exits 0.
 
 ## OUT OF SCOPE
 - Other trackers (Linear, GitLab, Azure Boards); they can be added behind the same interface.

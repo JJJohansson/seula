@@ -75,6 +75,11 @@ G0 and the ticket-to-spec workflow read tickets from, and report to, Jira or Git
 through `seula tracker` ([`../specs/trackers.md`](../specs/trackers.md)). The gates themselves
 never talk to a tracker.
 
+Board sync (approved 28 Sep 2026, being built: [`../specs/board-sync.md`](../specs/board-sync.md)) is not a
+gate: it asks no model. A check on the spec pull request fails while the ticket is in *Needs
+input*, so a repo can block the merge with branch protection. A merge moves the ticket to
+*Planning*.
+
 ## G1 in detail
 
 ### Format rules (`seula check-spec`)

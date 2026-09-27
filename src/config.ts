@@ -70,7 +70,15 @@ export interface SeulaConfig {
 }
 
 export type TrackerType = "jira" | "github";
-export type TrackerState = "needsInput" | "specReview";
+export type TrackerState = "needsInput" | "specReview" | "planning";
+export const TRACKER_STATES: readonly TrackerState[] = ["needsInput", "specReview", "planning"];
+
+export function isTrackerState(value: unknown): value is TrackerState {
+  return TRACKER_STATES.includes(value as TrackerState);
+}
+
+/** The configured name of each state. `planning` has no default (trackers criterion 15). */
+export type TrackerStates = Record<"needsInput" | "specReview", string> & { planning?: string };
 
 export interface TrackerConfig {
   type: TrackerType;
@@ -91,12 +99,12 @@ export interface DesignConfig {
   linkPatterns: string[];
 }
 
-export const DEFAULT_STATES: Record<TrackerType, Record<TrackerState, string>> = {
+export const DEFAULT_STATES: Record<TrackerType, TrackerStates> = {
   jira: { needsInput: "Needs input", specReview: "Spec review" },
   github: { needsInput: "seula:needs-input", specReview: "seula:spec-review" },
 };
 
-export function trackerStates(config: SeulaConfig): Record<TrackerState, string> {
+export function trackerStates(config: SeulaConfig): TrackerStates {
   return { ...DEFAULT_STATES[config.tracker.type], ...config.tracker.states };
 }
 
