@@ -1,6 +1,6 @@
 # FEATURE: G0 ticket gate
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 11 approved 27 Sep 2026, being built.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 11 approved and built 27 Sep 2026.
 
 ## OVERVIEW
 A command that checks whether a ticket holds enough information to write a spec from, before

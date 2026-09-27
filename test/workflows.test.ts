@@ -518,3 +518,30 @@ test("ticket-to-spec criterion 16: a first run uses seula/<key>, and another tic
   assert.equal(env.BRANCH, "seula/meal-3");
   assert.equal(env.PREVIOUS_SPEC ?? "", "");
 });
+
+// Criterion 18: the ticket's answers in comments reach G0 and the agent (MEAL-1: they never did).
+const COMMENTS = "Read the ticket's comments";
+
+test("ticket-to-spec criterion 18: the comments go into the ticket file after the ticket is read and before G0", () => {
+  const names = stepNames();
+  const at = names.findIndex((n) => n.startsWith(COMMENTS));
+  assert.ok(at >= 0, "no comments step");
+  assert.ok(names.findIndex((n) => n.startsWith("Read the ticket (")) < at, "after the ticket is read");
+  assert.ok(at < names.findIndex((n) => n.startsWith("G0 ·")), "before G0");
+  assert.ok(script(COMMENTS).includes('$SEULA tracker comments --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --append "$TICKET_FILE"'));
+});
+
+test("ticket-to-spec criteria 6, 18: only the tracker's credentials reach the comments step", () => {
+  const s = step(COMMENTS);
+  for (const secret of ["SEULA_GH_TOKEN", "JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN"]) assert.match(s, new RegExp(`secrets\.${secret}`));
+  assert.doesNotMatch(s, /ANTHROPIC_API_KEY|TYPESAFE_API_KEY/);
+  // The step that reads the ticket from the event still needs no secret.
+  assert.doesNotMatch(step("Read the ticket ("), /secrets\./);
+});
+
+test("ticket-to-spec criteria 17-18: a failure to read the comments is a technical failure that names the step", () => {
+  // No `|| true`: the step fails, and the failure report names it (criterion 17).
+  assert.doesNotMatch(script(COMMENTS), /\|\|/);
+  assert.ok(reportedSteps().some((s) => COMMENTS.startsWith(s.name) || s.name.startsWith(COMMENTS)), "the failure report knows the step");
+  assert.equal(reportedSteps()[0]?.variable, "OUT_COMMENTS", "the first step that can fail after the ticket is read");
+});

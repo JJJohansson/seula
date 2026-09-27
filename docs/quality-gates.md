@@ -20,7 +20,7 @@ the automated checks are the `seula` commands, run the same way by the agent and
 
 | Gate | Between | Passes when | Checked by | On failure | Status |
 |---|---|---|---|---|---|
-| **G0 Input ready** | ticket → spec | The ticket is long enough, states what must change, doesn't contradict itself, and contains no text aimed at the agent | `seula gate g0`: word count, then Jev on the ticket text | Questions posted on the ticket, status *Needs input*; agent-aimed text stops for a person | **Implemented** |
+| **G0 Input ready** | ticket → spec | The ticket (its description and its comments) is long enough, states what must change, doesn't contradict itself, and contains no text aimed at the agent. A later comment that changes a requirement replaces it | `seula gate g0`: word count, then Jev on the ticket text and comments | Questions posted on the ticket, status *Needs input*; agent-aimed text stops for a person | **Implemented** |
 | **G1 Spec ready** | spec → plan | Format rules pass (below), and Jev judges every acceptance criterion testable, unambiguous, about behavior, and in scope | `seula check-spec`, then Jev per criterion (`seula gate g1`) | Back to the spec writer with the failed questions; unsure → reviewer or person | **Implemented** |
 | **G1 approval** | | A person has read the spec and set its status to *Approved* | You | — | Manual |
 | **G2 Plan ready** | plan → build | Every criterion maps to a task and a test; files to touch are listed | Script (criterion coverage); Jev flags auth, schema or personal-data changes | Back to plan; flagged risks go to a person | Planned |

@@ -23,7 +23,7 @@ Fine-grained tokens) with access to **only this repo** and these permissions:
 
 - **Contents:** Read and write (push the spec branch)
 - **Pull requests:** Read and write (open the pull request)
-- **Issues:** Read and write (comment and set labels)
+- **Issues:** Read and write (read and post comments, set labels)
 
 The workflow pushes and opens the pull request with this token, not the default
 `GITHUB_TOKEN`, because pushes made with `GITHUB_TOKEN` don't start the repo's CI. Give it a
@@ -54,10 +54,12 @@ be changed in `seula.config.json` → `tracker`.
 1. Open an issue with a clear goal, for example "Let users export this week's shopping list as a
    CSV file, one row per item, with a header row."
 2. Add the `seula:ready-for-spec` label.
-3. Within a few minutes: a pull request on a `seula/gh-<number>-…` branch, a comment on the
+3. Within a few minutes: a pull request on a `seula/gh-<number>` branch, a comment on the
    issue with its link, and the label `seula:spec-review`.
 4. Open a second issue with only a title and add the label. G0 should send it back: a comment
    with questions and the label `seula:needs-input`.
+5. Answer the questions in a comment on that issue, then add the label
+   `seula:ready-for-spec` again. seula reads the comments too, so the answer counts.
 
 ## Options
 

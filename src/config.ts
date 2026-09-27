@@ -164,11 +164,13 @@ export const DEFAULT_CONFIG: SeulaConfig = {
         onFail: "back",
         message: "What exactly must change, or what must be added?",
       },
+      // g0-ticket-gate.md criterion 11: the ticket file can hold comments, oldest first.
       contradiction: {
-        instructions: "Does the ticket contain two requirements that cannot both be true?",
+        instructions:
+          "Does the ticket contain two requirements that cannot both be true? A later comment can change a requirement from an earlier part of the ticket. Count that change as a replacement, not as a conflict.",
         criteria: {
-          true: "At least two requirements conflict",
-          false: "The requirements do not conflict",
+          true: "At least two requirements conflict, and no later comment replaces one of them",
+          false: "The requirements do not conflict, or a later comment replaces the earlier requirement",
         },
         good: "no",
         onFail: "back",

@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 18–19 and the additions to 11 and 17 approved 27 Sep 2026, being built.
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 built 27 Sep 2026. The cost breakdown in criterion 11 is approved and being built.
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker

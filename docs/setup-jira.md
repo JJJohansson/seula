@@ -31,7 +31,7 @@ For a first setup, allow transitions from any status to any status. seula moves 
 |---|---|---|---|
 | Jira dispatch token | GitHub → Settings → Developer settings → Fine-grained tokens | Only this repo; **Contents: Read and write** (needed for `repository_dispatch`) | The Jira automation rule |
 | seula bot token | Same place | Only this repo; **Contents: Read and write**, **Pull requests: Read and write** | The workflow, to push the branch and open the pull request. Pushes made with the default `GITHUB_TOKEN` don't start CI. |
-| Jira API token | id.atlassian.com → Security → API tokens | Your Jira user's rights | The workflow, to comment on and move tickets |
+| Jira API token | id.atlassian.com → Security → API tokens | Your Jira user's rights | The workflow, to read comments on tickets, comment on them and move them |
 
 Give the GitHub tokens a short expiry and revoke them when you stop using seula. The dispatch
 token can write to the repo, so keep it only in the Jira rule.
@@ -86,10 +86,12 @@ GitHub answers a correct request with **204 No Content**; the rule's audit log s
 ## 6. Test it
 
 1. Create a ticket with a clear goal, then move it to **Ready for spec**.
-2. Within a few minutes: a pull request on a `seula/<key>-…` branch, a comment on the ticket with
-   its link, and the ticket in **Spec review**.
+2. Within a few minutes: a pull request on a `seula/<key>` branch (the key in lowercase), a
+   comment on the ticket with its link, and the ticket in **Spec review**.
 3. Create a second ticket with only a title and move it to **Ready for spec**. G0 should send it
    back: a comment with questions, and the ticket in **Needs input**.
+4. Answer the questions in a comment on that ticket, then move it to **Ready for spec** again.
+   seula reads the comments too, so the answer counts. The earlier comments stay on the ticket.
 
 ## Options
 

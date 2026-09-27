@@ -104,3 +104,11 @@ test("design-first edge case: a non-UI ticket with a design link keeps the link"
   assert.equal(r.decision, "pass");
   assert.equal(r.designLink, "docs/design/x/");
 });
+
+test("g0 criterion 11: the default contradiction question counts a later comment as a replacement", () => {
+  const q = config().jev.ticketQuestions.contradiction;
+  assert.ok(q);
+  assert.match(q.instructions, /A later comment can change a requirement/);
+  assert.match(q.instructions, /Count that change as a replacement, not as a conflict\./);
+  assert.match(q.criteria?.false ?? "", /replaces/);
+});

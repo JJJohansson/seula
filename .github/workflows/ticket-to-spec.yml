@@ -1,7 +1,8 @@
 name: seula · ticket to spec (reusable)
 
 # specs/ticket-to-spec-workflow.md. Called from an adopting repo's short caller workflow
-# (written by `seula init`). Reads the ticket from the triggering event, checks it (G0), lets
+# (written by `seula init`). Reads the ticket from the triggering event and its comments from the
+# tracker, checks it (G0), lets
 # Claude write or update the spec with G1 in its loop, opens a pull request, and reports back on
 # the ticket.
 #
@@ -119,6 +120,18 @@ jobs:
             echo "SPEC_DIR=${spec_dir%/}"
           } >> "$GITHUB_ENV"
           cat "$tickets_dir/$run_id.md"
+
+      - name: Read the ticket's comments (criterion 18)
+        id: comments
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          # Answers in comments reach G0 and the agent. The text goes only into the ticket file,
+          # quoted (criterion 6). A failure here is a technical failure (criterion 17).
+          $SEULA tracker comments --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --append "$TICKET_FILE"
 
       - name: G0 · is the ticket ready? (criterion 3)
         id: g0
@@ -499,6 +512,7 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           # Why it failed: the outcome of each step that can fail, and the result's reason code.
+          OUT_COMMENTS: ${{ steps.comments.outcome }}
           OUT_G0: ${{ steps.g0.outcome }}
           OUT_ASK: ${{ steps.ask.outcome }}
           OUT_EARLIER: ${{ steps.earlier.outcome }}
@@ -520,6 +534,7 @@ jobs:
           fi
           # The steps that can fail, in workflow order: the first that failed is the reason.
           steps=(
+            "OUT_COMMENTS|Read the ticket's comments"
             "OUT_G0|G0 · is the ticket ready?"
             "OUT_ASK|Ask on the ticket"
             "OUT_EARLIER|Find an earlier run for this ticket"

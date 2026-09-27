@@ -57,8 +57,8 @@ files. Then add the secrets it lists and follow the setup guide for your tracker
 - [GitHub Issues](docs/setup-github-issues.md): add the `seula:ready-for-spec` label to an issue.
 - [Jira](docs/setup-jira.md): move a ticket to *Ready for spec*.
 
-Either way, the result is a pull request with the spec, the ticket, and every gate result, and a
-comment on the ticket. A person approves the spec and merges.
+Either way, the result is a pull request with the spec, the ticket and its comments, and every
+gate result, and a comment on the ticket. A person approves the spec and merges.
 
 ## Running the gates by hand
 

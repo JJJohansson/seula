@@ -1,6 +1,6 @@
 # FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer prompt)
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved 27 Sep 2026, being built.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026.
 
 ## OVERVIEW
 seula installs as a Claude Code plugin with three parts: a skill that tells an agent which gate
