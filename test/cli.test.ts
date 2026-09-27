@@ -13,7 +13,8 @@ const FIXTURES = join(import.meta.dirname, "fixtures");
 
 function run(args: string[], cwd: string) {
   const env = { ...process.env };
-  delete env.TYPESAFE_API_KEY;
+  // Tests never reach a real service.
+  for (const key of ["TYPESAFE_API_KEY", "JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "GITHUB_TOKEN"]) delete env[key];
   const r = spawnSync(process.execPath, [CLI, ...args], { cwd, env, encoding: "utf8" });
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -148,6 +149,17 @@ test("trackers criterion 2: tracker ticket writes the ticket file and prints key
   assert.equal(readFileSync(join(d, ".seula/tickets/pending.md"), "utf8"), "# 7: Dark mode\n\nSource: https://github.com/a/b/issues/7\n\nFollow the OS theme.\n");
   writeFileSync(join(d, "bad.json"), JSON.stringify({ client_payload: { key: "nope" } }));
   assert.equal(run(["tracker", "ticket", "--tracker", "jira", "--event", "bad.json", "--out", "x.md"], d).code, 64);
+});
+
+test("trackers criterion 10: tracker comments needs a key and a file, and writes nothing without credentials", () => {
+  const d = workdir();
+  writeFileSync(join(d, "MP-7.md"), "# MP-7: X\n");
+  assert.equal(run(["tracker", "comments", "--tracker", "jira", "--append", "MP-7.md"], d).code, 64);
+  assert.equal(run(["tracker", "comments", "--tracker", "jira", "--key", "MP-7"], d).code, 64);
+  const r = run(["tracker", "comments", "--tracker", "jira", "--key", "MP-7", "--append", "MP-7.md"], d);
+  assert.equal(r.code, 64, r.stderr);
+  assert.match(r.stderr, /JIRA_BASE_URL/);
+  assert.equal(readFileSync(join(d, "MP-7.md"), "utf8"), "# MP-7: X\n");
 });
 
 test("design-first criterion 5: gate g0 stores the design link in the run file", async () => {

@@ -1,6 +1,6 @@
-/** Jira Cloud adapter (specs/trackers.md criteria 3, 5, 6, 8). */
+/** Jira Cloud adapter (specs/trackers.md criteria 3, 5, 6, 8, 10). */
 import type { TrackerState } from "../config.ts";
-import { type Ticket, TicketError, type Tracker, TrackerApiError, failIfNotOk, httpsOrEmpty } from "./types.ts";
+import { type CommentPage, type Ticket, TicketError, type Tracker, TrackerApiError, failIfNotOk, httpsOrEmpty, ticketComment } from "./types.ts";
 
 export interface JiraEnv {
   JIRA_BASE_URL?: string;
@@ -33,6 +33,16 @@ export class JiraTracker implements Tracker {
       body: typeof p.description === "string" ? p.description : "",
       url: httpsOrEmpty(p.url),
     };
+  }
+
+  async comments(key: string, max: number): Promise<CommentPage> {
+    this.checkKey(key);
+    const res = await this.api(`/rest/api/2/issue/${key}/comment?orderBy=-created&maxResults=${max}`, { method: "GET" });
+    await failIfNotOk(res, `Jira comments of ${key}`);
+    const data = (await res.json()) as { total?: number; comments?: { author?: { displayName?: string }; created?: string; body?: unknown }[] };
+    const newestFirst = (data.comments ?? []).slice(0, max);
+    const comments = newestFirst.reverse().map((x) => ticketComment(x.author?.displayName ?? "", x.created ?? "", typeof x.body === "string" ? x.body : ""));
+    return { comments, total: Math.max(data.total ?? 0, comments.length) };
   }
 
   async comment(key: string, text: string): Promise<void> {

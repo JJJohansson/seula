@@ -12,13 +12,39 @@ export interface Ticket {
   url: string;
 }
 
+/** One comment on a ticket (specs/trackers.md criteria 10–11). */
+export interface TicketComment {
+  author: string;
+  /** The tracker's timestamp, as it sent it. */
+  created: string;
+  body: string;
+  /** Starts with one of seula's own prefixes. A label for readers, never a trust signal. */
+  fromSeula: boolean;
+}
+
+/** The newest comments, oldest first, and how many the ticket has in total. */
+export interface CommentPage {
+  comments: TicketComment[];
+  total: number;
+}
+
 export interface Tracker {
   readonly type: TrackerType;
   /** Checks a key given on the command line. */
   readonly keyPattern: RegExp;
   ticketFromEvent(event: unknown): Ticket;
+  /** The newest `max` comments of the ticket, oldest first. */
+  comments(key: string, max: number): Promise<CommentPage>;
   comment(key: string, text: string): Promise<void>;
   move(key: string, state: TrackerState): Promise<void>;
+}
+
+/** Every comment seula posts starts with one of these (ticket-to-spec workflow criteria 3, 9, 17). */
+const SEULA_PREFIXES = ["seula · ", "seula failed to run"];
+
+export function ticketComment(author: string, created: string, body: string): TicketComment {
+  const start = body.trimStart();
+  return { author, created, body, fromSeula: SEULA_PREFIXES.some((p) => start.startsWith(p)) };
 }
 
 /** The event or a key is not usable: a usage error (exit 64). */

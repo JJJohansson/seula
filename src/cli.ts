@@ -14,6 +14,7 @@ import { type ParsedSpec, parseSpec } from "./spec.ts";
 import { init, initReport } from "./init.ts";
 import { renderSpecWriterPrompt } from "./prompts.ts";
 import { statusTable } from "./status.ts";
+import { appendComments } from "./trackers/comments.ts";
 import { makeTracker } from "./trackers/index.ts";
 import { TicketError, ticketMarkdown } from "./trackers/types.ts";
 
@@ -30,6 +31,7 @@ Usage:
 
   seula init --tracker <jira|github>   Set seula up in this repo (config + workflows)
   seula tracker ticket --event <file> --out <file>        Ticket file from a trigger event
+  seula tracker comments --key <key> --append <file>      Add the ticket's comments to a ticket file
   seula tracker comment --key <key> --text-file <file>    Comment on a ticket
   seula tracker move --key <key> --state <needsInput|specReview>
   seula prompt spec-writer --run <id> --ticket <file>     The spec-writer prompt for a run
@@ -80,6 +82,7 @@ interface Options {
   key?: string;
   state?: string;
   "text-file"?: string;
+  append?: string;
   "seula-cmd"?: string;
   "previous-spec"?: string;
   "spec-dir"?: string;
@@ -257,6 +260,19 @@ async function trackerCommand(
       process.stdout.write(`${JSON.stringify({ key: ticket.key, runId: ticket.runId, title: ticket.title, url: ticket.url })}\n`);
       return 0;
     }
+    case "comments": {
+      const usage = "tracker comments --key <key> --append <ticket file>";
+      const key = need(opts.key, usage);
+      const file = need(opts.append, usage);
+      const limits = { maxComments: config.tracker.maxComments, maxCommentChars: config.tracker.maxCommentChars };
+      for (const [name, value] of Object.entries(limits)) {
+        if (!Number.isSafeInteger(value) || value < 1) throw new UsageError(`tracker.${name} in the config must be a whole number above 0.`);
+      }
+      if (!tracker.keyPattern.test(key)) throw new UsageError(`Invalid ticket key "${key}".`);
+      const result = await appendComments(file, tracker, key, limits);
+      out(`Added ${result.added} comment(s) of ${key} to ${file}; ${result.leftOut} left out.`, { key, ...result });
+      return 0;
+    }
     case "comment": {
       const key = need(opts.key, "tracker comment --key <key> --text-file <file>");
       const text = readFileSync(need(opts["text-file"], "tracker comment --key <key> --text-file <file>"), "utf8");
@@ -273,7 +289,7 @@ async function trackerCommand(
       return 0;
     }
     default:
-      throw new UsageError("Usage: seula tracker ticket|comment|move …");
+      throw new UsageError("Usage: seula tracker ticket|comments|comment|move …");
   }
 }
 
@@ -336,6 +352,7 @@ function parse(argv: string[]) {
       key: { type: "string" },
       state: { type: "string" },
       "text-file": { type: "string" },
+      append: { type: "string" },
       "seula-cmd": { type: "string" },
       "previous-spec": { type: "string" },
       "spec-dir": { type: "string" },

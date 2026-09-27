@@ -1,6 +1,6 @@
-/** GitHub Issues adapter (specs/trackers.md criteria 4, 5, 6, 7, 8). */
+/** GitHub Issues adapter (specs/trackers.md criteria 4, 5, 6, 7, 8, 10). */
 import type { TrackerState } from "../config.ts";
-import { type Ticket, TicketError, type Tracker, failIfNotOk, httpsOrEmpty } from "./types.ts";
+import { type CommentPage, type Ticket, TicketError, type Tracker, failIfNotOk, httpsOrEmpty, ticketComment } from "./types.ts";
 
 export interface GitHubEnv {
   GITHUB_TOKEN?: string;
@@ -9,6 +9,14 @@ export interface GitHubEnv {
 }
 
 const LABEL_COLOR = "5319e7";
+const PER_PAGE = 100;
+
+/** The page number of rel="last" in a Link header, or 1. Only the number is used, never the URL. */
+function lastPage(link: string | null): number {
+  const m = /[?&]page=(\d+)[^>]*>;\s*rel="last"/.exec(link ?? "");
+  const n = Number(m?.[1] ?? 1);
+  return Number.isSafeInteger(n) && n >= 1 ? n : 1;
+}
 
 export class GitHubTracker implements Tracker {
   readonly type = "github" as const;
@@ -37,6 +45,34 @@ export class GitHubTracker implements Tracker {
       body: typeof issue.body === "string" ? issue.body : "",
       url: httpsOrEmpty(issue.html_url),
     };
+  }
+
+  async comments(key: string, max: number): Promise<CommentPage> {
+    this.checkKey(key);
+    // The API lists oldest first, so the newest comments are on the last pages. The Link header
+    // gives the last page's number; the requests themselves always go to this adapter's own host.
+    const path = `/issues/${key}/comments?per_page=${PER_PAGE}`;
+    const read = async (page: number) => {
+      const res = await this.api(page === 1 ? path : `${path}&page=${page}`, { method: "GET" });
+      await failIfNotOk(res, `GitHub comments of #${key}`);
+      const items = (await res.json()) as { user?: { login?: string }; created_at?: string; body?: unknown }[];
+      return { res, items: Array.isArray(items) ? items : [] };
+    };
+    const first = await read(1);
+    const last = lastPage(first.res.headers.get("link"));
+    let items = first.items;
+    let total = items.length;
+    if (last > 1) {
+      const lastItems = (await read(last)).items;
+      total = (last - 1) * PER_PAGE + lastItems.length;
+      // Only the pages that hold the newest `max` comments: at most max / PER_PAGE + 2 reads.
+      const from = Math.floor(Math.max(0, total - max) / PER_PAGE) + 1;
+      const middle: typeof items[] = [];
+      for (let page = from; page < last; page++) middle.push(page === 1 ? first.items : (await read(page)).items);
+      items = [...middle.flat(), ...lastItems];
+    }
+    const comments = items.slice(-max).map((x) => ticketComment(x.user?.login ?? "", x.created_at ?? "", typeof x.body === "string" ? x.body : ""));
+    return { comments, total };
   }
 
   async comment(key: string, text: string): Promise<void> {

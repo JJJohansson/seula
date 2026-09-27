@@ -78,6 +78,10 @@ export interface TrackerConfig {
   states: Partial<Record<TrackerState, string>>;
   /** GitHub only: the label that starts the ticket-to-spec workflow. */
   triggerLabel: string;
+  /** At most this many of the newest comments go into the ticket file. */
+  maxComments: number;
+  /** At most this many characters of comment text go into the ticket file. */
+  maxCommentChars: number;
 }
 
 export interface DesignConfig {
@@ -109,7 +113,7 @@ export const DEFAULT_CONFIG: SeulaConfig = {
   maxBacks: 2,
   minTicketWords: 8,
   ticketsDir: ".seula/tickets",
-  tracker: { type: "github", states: {}, triggerLabel: "seula:ready-for-spec" },
+  tracker: { type: "github", states: {}, triggerLabel: "seula:ready-for-spec", maxComments: 30, maxCommentChars: 20000 },
   design: { required: false, linkPatterns: ["docs/design/", "figma.com/"] },
   jev: {
     endpoint: "https://api.typesafe.ai/v1/systemone",
