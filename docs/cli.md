@@ -78,6 +78,18 @@ It reports false blocks, misses and how often it is unsure, for the current and 
 recommended cut-offs, and prints the config to paste in. The label format is in
 [`examples/calibration/labels.example.json`](../examples/calibration/labels.example.json).
 
+## Commands the workflows use
+
+You rarely need these by hand, but they work locally too:
+
+- `seula tracker key --branch seula/meal-4` prints the ticket key and run id from a seula
+  branch name, with no tracker call.
+- `seula tracker state --key MEAL-4 [--fail-on needsInput]` reads the ticket's state; the
+  board sync check uses it.
+- `seula tracker move --key MEAL-4 --state planning` moves a ticket (`needsInput`,
+  `specReview` or `planning`).
+- `seula approve specs/my-feature.md --pr 142` marks a merged spec *Approved* in its status line.
+
 ## Run files and status
 
 With `--run <id>`, each gate result is added to `.seula/runs/<id>.json`. The file travels with

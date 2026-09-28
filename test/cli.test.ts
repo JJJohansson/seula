@@ -432,3 +432,31 @@ test("g2 criterion 10: --run records G2 events, and the third back stops at the 
   assert.equal(run(["gate", "g2", "gap.md", "--run", "MEAL-10"], d).code, 1);
   assert.equal(run(["gate", "g2", "gap.md", "--run", "MEAL-10"], d).code, 3);
 });
+
+test("trackers criterion 17: tracker key prints the key and run id from a branch, with no credentials", () => {
+  const d = workdir();
+  const jira = run(["tracker", "key", "--tracker", "jira", "--branch", "seula/meal-3-copy-ingredients"], d);
+  assert.equal(jira.code, 0, jira.stderr);
+  assert.deepEqual(JSON.parse(jira.stdout), { key: "MEAL-3", runId: "MEAL-3" });
+  const gh = run(["tracker", "key", "--tracker", "github", "--branch", "seula/gh-42"], d);
+  assert.equal(gh.code, 0, gh.stderr);
+  assert.deepEqual(JSON.parse(gh.stdout), { key: "42", runId: "GH-42" });
+});
+
+test("trackers criterion 17: a branch with no key, or no --branch, exits 64", () => {
+  const d = workdir();
+  assert.equal(run(["tracker", "key", "--tracker", "jira", "--branch", "seula/notes"], d).code, 64);
+  assert.equal(run(["tracker", "key", "--tracker", "jira"], d).code, 64);
+});
+
+test("spec-to-plan criterion 15: seula approve rewrites the file; a bad --pr exits 64 and leaves it unchanged", () => {
+  const d = workdir();
+  const spec = join(d, "spec.md");
+  const original = readFileSync(join(FIXTURES, "plan-spec.md"), "utf8").replace(/^> \*\*Status:\*\*.*$/m, "> **Status:** Idea");
+  writeFileSync(spec, original);
+  assert.equal(run(["approve", "spec.md", "--pr", "abc"], d).code, 64);
+  assert.equal(readFileSync(spec, "utf8"), original);
+  const r = run(["approve", "spec.md", "--pr", "142"], d);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(readFileSync(spec, "utf8"), /^> \*\*Status:\*\* Approved \(\d{1,2} [A-Z][a-z]{2} \d{4}, merged in #142\)\r?$/m);
+});

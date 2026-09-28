@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { calibrate, calibrationReport, type LabelsFile } from "./calibrate.ts";
 import { type SeulaConfig, type TrackerType, isTrackerState, loadConfig, trackerStates } from "./config.ts";
 import { CredentialError, UsageError } from "./errors.ts";
+import { approveSpec } from "./approve.ts";
 import { checkPlan } from "./gates/checkPlan.ts";
 import { jevPlan, planFeedbackLines } from "./gates/jevPlan.ts";
 import { type CheckSpecResult, checkSpec } from "./gates/checkSpec.ts";
@@ -37,12 +38,14 @@ Usage:
   seula tracker ticket --event <file> --out <file>        Ticket file from a trigger event
   seula tracker comments --key <key> --append <file>      Add the ticket's comments to a ticket file
   seula tracker comment --key <key> --text-file <file>    Comment on a ticket
+  seula tracker key --branch <seula branch>               The ticket key and run id from a branch name (no API call)
   seula tracker state --key <key> [--fail-on <state>]     The ticket's state; exits 1 when it is in <state>
   seula tracker move --key <key> --state <needsInput|specReview|planning>
                                  (state and move: --branch <seula branch> in place of --key)
   seula prompt spec-writer --run <id> --ticket <file>     The spec-writer prompt for a run
                                  (--previous-spec <file>: an earlier run's draft to update)
   seula prompt planner --run <id> --spec <file> --approved <file>   The planner prompt for an approved spec
+  seula approve <spec.md> --pr <number>   Mark a merged spec Approved in its status line
   seula config                   The effective configuration, as JSON
 
 Options:
@@ -98,6 +101,7 @@ interface Options {
   "seula-cmd"?: string;
   "previous-spec"?: string;
   approved?: string;
+  pr?: string;
   spec?: string;
   "spec-dir"?: string;
   "design-first"?: boolean;
@@ -226,6 +230,16 @@ async function main(argv: string[]): Promise<number> {
     case "tracker":
       return trackerCommand(rest[0], opts, config, out);
 
+    case "approve": {
+      const usage = "approve <spec.md> --pr <number>";
+      const file = need(rest[0], usage);
+      const pr = need(opts.pr, usage);
+      const markdown = readFileSync(file, "utf8");
+      writeFileSync(file, approveSpec(markdown, config, /^\d+$/.test(pr) ? Number(pr) : Number.NaN));
+      out(`Approved ${file} (merged in #${pr}).`, { spec: file, pr: Number(pr) });
+      return 0;
+    }
+
     case "config":
       process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
       return 0;
@@ -311,6 +325,13 @@ async function trackerCommand(
       out(`Commented on ${key}.`, { key, commented: true });
       return 0;
     }
+    case "key": {
+      // trackers criterion 17: from the branch name only; no API call, no credential.
+      const key = tracker.keyFromBranch(need(opts.branch, "tracker key --branch <seula branch>"));
+      const runId = tracker.type === "github" ? `GH-${key}` : key;
+      process.stdout.write(`${JSON.stringify({ key, runId })}\n`);
+      return 0;
+    }
     case "state": {
       const key = ticketKey(opts, tracker, "tracker state --key <key> [--fail-on <needsInput|specReview|planning>]");
       const failOn = opts["fail-on"];
@@ -339,7 +360,7 @@ async function trackerCommand(
       return 0;
     }
     default:
-      throw new UsageError("Usage: seula tracker ticket|comments|comment|state|move …");
+      throw new UsageError("Usage: seula tracker ticket|comments|comment|key|state|move …");
   }
 }
 
@@ -407,6 +428,7 @@ function parse(argv: string[]) {
       "seula-cmd": { type: "string" },
       "previous-spec": { type: "string" },
       approved: { type: "string" },
+      pr: { type: "string" },
       spec: { type: "string" },
       "spec-dir": { type: "string" },
       "design-first": { type: "boolean", default: false },
