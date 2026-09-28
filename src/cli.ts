@@ -6,6 +6,7 @@ import { calibrate, calibrationReport, type LabelsFile } from "./calibrate.ts";
 import { type SeulaConfig, type TrackerType, isTrackerState, loadConfig, trackerStates } from "./config.ts";
 import { CredentialError } from "./errors.ts";
 import { checkPlan } from "./gates/checkPlan.ts";
+import { jevPlan, planFeedbackLines } from "./gates/jevPlan.ts";
 import { type CheckSpecResult, checkSpec } from "./gates/checkSpec.ts";
 import { type JevSpecResult, feedbackLines, jevSpec } from "./gates/jevSpec.ts";
 import { type JevTicketResult, jevTicket, wordCount } from "./gates/jevTicket.ts";
@@ -443,20 +444,41 @@ function loadDotEnv(): void {
   }
 }
 
-/** G2 (specs/g2-plan-gate.md): the plan's script rules. The Jev flags come in the next unit, so Jev is reported as skipped. */
-function gateG2(file: string | undefined, opts: Options, config: SeulaConfig, out: (text: string, data: unknown) => void): number {
+/** G2 (specs/g2-plan-gate.md): the plan's script rules, then Jev's flag questions when they pass. */
+async function gateG2(file: string | undefined, opts: Options, config: SeulaConfig, out: (text: string, data: unknown) => void): Promise<number> {
   const path = need(file, "gate g2 <spec.md> [--approved <file>]");
+  const markdown = readFileSync(path, "utf8");
   const approved = opts.approved === undefined ? undefined : readFileSync(opts.approved, "utf8");
-  const check = checkPlan(readFileSync(path, "utf8"), config, approved);
-  const lines = [`G2 · plan · ${path}`, ...check.findings.map((f) => `plan · ${f.rule}: ${f.message}`)];
+  const spec = parseSpec(markdown, config);
+  const check = checkPlan(markdown, config, approved);
+  const lines = [`G2 · plan · ${path}`];
   if (!check.ok) {
-    lines.push(`Result: BACK (${check.findings.length} errors)`);
-    out(lines.join("\n"), { decision: "back", findings: check.findings });
-    return EXIT.back;
+    const feedback = check.findings.map((f) => `plan · ${f.rule}: ${f.message}`);
+    const run = recordSpec(opts, config, "G2", spec, path, "back", `${check.findings.length} plan errors`, feedback);
+    out([...lines, ...feedback, `Result: BACK (${check.findings.length} errors)`].join("\n") + blockedText(run), {
+      decision: "back",
+      findings: check.findings,
+      blocked: run?.blocked,
+    });
+    return run?.blocked ? EXIT_BLOCKED : EXIT.back;
   }
-  lines.push(`Plan rules: pass (${check.tasks.length} tasks).`, "Jev flags: skipped.", "Result: PASS");
-  out(lines.join("\n"), { decision: "pass", tasks: check.tasks.length, jev: "skipped" });
-  return EXIT.pass;
+  lines.push(`Plan rules: pass (${check.tasks.length} tasks).`);
+  const model = pickModel(opts, config);
+  if (!model) {
+    recordSpec(opts, config, "G2", spec, path, "skipped", "Jev skipped: no TYPESAFE_API_KEY");
+    out([...lines, "Jev flags: skipped (no TYPESAFE_API_KEY).", "Result: PASS"].join("\n"), { decision: "skipped", tasks: check.tasks.length });
+    return EXIT.skipped;
+  }
+  const result = await jevPlan(spec, config, model);
+  const feedback = planFeedbackLines(result);
+  const run = recordSpec(opts, config, "G2", spec, path, result.decision, `${result.flags.length} flags`, feedback, result.costUsd);
+  const verdict = result.decision === "review" ? "UNSURE: a person reviews the flags" : "PASS";
+  out([...lines, ...feedback, `Jev flags: ${result.flags.length}.`, `Result: ${verdict}`].join("\n") + blockedText(run), {
+    ...result,
+    tasks: check.tasks.length,
+    blocked: run?.blocked,
+  });
+  return run?.blocked ? EXIT_BLOCKED : EXIT[result.decision];
 }
 
 function readSpec(file: string, config: SeulaConfig): ParsedSpec {

@@ -23,7 +23,7 @@ the automated checks are the `seula` commands, run the same way by the agent and
 | **G0 Input ready** | ticket → spec | The ticket (its description and its comments) is long enough, states what must change, doesn't contradict itself, and contains no text aimed at the agent. A later comment that changes a requirement replaces it | `seula gate g0`: word count, then Jev on the ticket text and comments | Questions posted on the ticket, status *Needs input*; agent-aimed text stops for a person | **Implemented** |
 | **G1 Spec ready** | spec → plan | Format rules pass (below), and Jev judges every acceptance criterion testable, unambiguous, about behavior, and in scope | `seula check-spec`, then Jev per criterion (`seula gate g1`) | Back to the spec writer with the failed questions; unsure → reviewer or person | **Implemented** |
 | **G1 approval** | | A person has read the spec and set its status to *Approved* | You | — | Manual |
-| **G2 Plan ready** | plan → build | Every criterion maps to a task with a test and files; the plan changes nothing else in the approved spec | `seula gate g2`: script (coverage), then Jev flags sign-in, stored data or personal data | Back to the planning agent; flags go to the plan reviewer | Approved; script rules built: [`g2-plan-gate.md`](../specs/g2-plan-gate.md), [`spec-to-plan-workflow.md`](../specs/spec-to-plan-workflow.md) |
+| **G2 Plan ready** | plan → build | Every criterion maps to a task with a test and files; the plan changes nothing else in the approved spec | `seula gate g2`: script (coverage), then Jev flags sign-in, stored data or personal data | Back to the planning agent; flags go to the plan reviewer | Built (`seula gate g2`); the workflow not yet: [`g2-plan-gate.md`](../specs/g2-plan-gate.md), [`spec-to-plan-workflow.md`](../specs/spec-to-plan-workflow.md) |
 | **G3 Build green** | build → verify | Lint, typecheck, unit tests, build, accessibility and security scans pass; every criterion is cited by a test; changes stay within the planned files | CI, plus a citation check | Back to build with the CI output | Planned (CI exists in the target repo) |
 | **G4 Verified** | verify → merge | A reviewer in a fresh context confirms the diff does what the criteria say and nothing more; end-to-end test passes | Claude reviewer agent + CI | Back to build | Planned |
 | **G4 merge** | | A person merges | You | — | Manual |
@@ -140,6 +140,30 @@ because they waste agent loops and people's patience.
 Keep the labels in the target repo (they contain its specs), for example
 `.seula/calibration/labels.json`, and record the Jev answers with `--record` so the
 calibration can be re-run offline.
+
+## G2 in detail
+
+`seula gate g2 <spec>` checks the `## PLAN` section of an approved spec
+([`../specs/g2-plan-gate.md`](../specs/g2-plan-gate.md)). Each plan task is a numbered item
+that names `Criteria:`, `Test:` and `Files:`.
+
+**Script rules** (any error sends the plan back to the planning agent): every task has all three
+labels; every acceptance criterion is covered by a task; no task names a criterion the spec
+doesn't have; no file path is absolute or contains `..`; and with `--approved <file>` (the spec
+as merged), nothing outside `## PLAN` and the status line changed.
+
+**Jev flags** (asked once per plan, only when the rules pass):
+
+| Question | Asks |
+|---|---|
+| `signIn` | Does the plan change sign-in, sessions or permissions? |
+| `storedData` | Does the plan change stored data or the database schema? |
+| `personalData` | Does the plan add, read, change or share personal data? |
+
+A question flags the plan when the probability of "yes" is above 1 minus its `passAt` (default
+0.75, so above 0.25). A flag makes the result unsure (exit 2) and never sends the plan back: it
+tells the plan reviewer where to look. `g2.questions` in the config replaces the whole set.
+After a pass, the run waits on a person to review the plan.
 
 ## Run files
 
