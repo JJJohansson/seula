@@ -29,8 +29,9 @@ Use the command that the task prompt or the repo docs give. If they give no comm
 |---|---|
 | read a ticket | `seula gate g0 --ticket <ticket file> --run <id> --title "<feature title>"` |
 | write or change a spec | `seula gate g1 <spec file> --run <id> --ticket <ticket file>` |
+| write or change a plan | `seula gate g2 <spec file> --approved <approved spec file> --run <id>` |
 
-Gates G2 to G5 are not available as commands yet. For those steps, follow the `spec-driven-development` skill and the repo's CI.
+Gates G3 to G5 are not available as commands yet. For those steps, follow the `spec-driven-development` skill and the repo's CI.
 
 ## What the exit code means
 
@@ -56,6 +57,19 @@ A G1 feedback line has this form: `criterion 3 · unambiguous: 0.18 → back`. I
 Format feedback (for example "Missing section", "Unfinished text", "numbered twice") is exact. Correct each item as the message says.
 
 Keep the numbers of existing criteria. Code and tests refer to criteria by number. Add new criteria at the end of the list.
+
+## How to fix G2 feedback
+
+G2 checks the `## PLAN` section of an approved spec. A G2 feedback line has this form: `plan · coverage: No plan task covers criterion 3.` It names the rule that failed.
+
+| Failed rule | What to change in the plan |
+|---|---|
+| `task` | Give the task all three labels: `Criteria:` with criterion numbers, `Test:` with the test that proves it, and `Files:` with the paths it changes or adds. Write a range from the low number to the high number, for example `2-4`. |
+| `coverage` | Add the missing criterion to the `Criteria:` of a task, or add a task for it. Remove a number that is not an acceptance criterion of the spec. |
+| `path` | Write the path from the root of the repo. Do not start it with `/` or a drive letter. Do not use `..`. |
+| `approved` | Undo your change outside `## PLAN`. Change only the plan. If the spec itself is wrong, stop and tell the person. |
+
+A G2 flag (exit code 2) is not an error. A flag line has this form: `plan · signIn: 0.80 → flag`. It tells the person who reviews the plan to look at a risky area: sign-in, stored data, or personal data. The plan is finished. Report the flags. Do not change the plan only to avoid a flag.
 
 ## How to fix G0 feedback
 

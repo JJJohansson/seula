@@ -32,7 +32,7 @@ The full gate definitions are in [`docs/quality-gates.md`](docs/quality-gates.md
 | G1 | Spec format rules + Jev per acceptance criterion | ✅ `seula gate g1` |
 | — | Run files, loop limit, `seula status` | ✅ |
 | — | Cut-off calibration from labeled examples | ✅ `seula calibrate` |
-| — | Claude Code plugin: `seula-gates` skill, `seula-reviewer` agent, spec-writer prompt | ✅ |
+| — | Claude Code plugin: `seula-gates` skill, `seula-reviewer` agent, spec-writer and planner prompts | ✅ |
 | — | Tracker adapters: Jira and GitHub Issues (`seula tracker`) | ✅ |
 | — | Reusable GitHub workflows: ticket → spec pull request, spec format check | ✅ (first real run pending) |
 | — | Board sync: a check that blocks merging a spec pull request while its ticket needs input; a merge moves the ticket to Planning | ✅ (first real run pending) |
@@ -111,7 +111,7 @@ Feedback:
 seula is also a Claude Code plugin. The `seula-gates` skill tells an agent which gate to run
 after each step and what each exit code means; the `seula-reviewer` agent (read-only, Opus)
 decides unsure items and checks a change against its spec; `prompts/spec-writer.md` drives an
-unattended spec run.
+unattended spec run, and `prompts/planner.md` writes the plan of an approved spec.
 
 ```
 /plugin marketplace add JJJohansson/seula

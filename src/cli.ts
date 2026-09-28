@@ -15,7 +15,7 @@ import type { Decision } from "./routing.ts";
 import { type ClaudeRun, type EventResult, type GateId, type RunFile, appendEvent, claudeRunFromOutput, readRun, readRuns, updateRun } from "./runs.ts";
 import { type ParsedSpec, parseSpec } from "./spec.ts";
 import { init, initReport } from "./init.ts";
-import { renderSpecWriterPrompt } from "./prompts.ts";
+import { renderPlannerPrompt, renderSpecWriterPrompt } from "./prompts.ts";
 import { statusTable } from "./status.ts";
 import { appendComments } from "./trackers/comments.ts";
 import { makeTracker } from "./trackers/index.ts";
@@ -42,6 +42,7 @@ Usage:
                                  (state and move: --branch <seula branch> in place of --key)
   seula prompt spec-writer --run <id> --ticket <file>     The spec-writer prompt for a run
                                  (--previous-spec <file>: an earlier run's draft to update)
+  seula prompt planner --run <id> --spec <file> --approved <file>   The planner prompt for an approved spec
   seula config                   The effective configuration, as JSON
 
 Options:
@@ -97,6 +98,7 @@ interface Options {
   "seula-cmd"?: string;
   "previous-spec"?: string;
   approved?: string;
+  spec?: string;
   "spec-dir"?: string;
   "design-first"?: boolean;
   "seula-ref"?: string;
@@ -229,7 +231,13 @@ async function main(argv: string[]): Promise<number> {
       return 0;
 
     case "prompt": {
-      if (rest[0] !== "spec-writer") throw new UsageError("Usage: seula prompt spec-writer --run <id> --ticket <file>");
+      if (rest[0] === "planner") {
+        const usage = "prompt planner --run <id> --spec <file> --approved <file>";
+        const input = { runId: need(opts.run, usage), specFile: need(opts.spec, usage), approvedFile: need(opts.approved, usage) };
+        process.stdout.write(renderPlannerPrompt(config, { ...input, seulaCmd: opts["seula-cmd"] ?? "npx -y github:JJJohansson/seula" }));
+        return 0;
+      }
+      if (rest[0] !== "spec-writer") throw new UsageError("Usage: seula prompt spec-writer|planner … (see seula help)");
       const runId = need(opts.run, "prompt spec-writer --run <id> --ticket <file>");
       const ticketFile = need(opts.ticket, "prompt spec-writer --run <id> --ticket <file>");
       const designLink = readRun(config.runsDir, runId)?.links.design;
@@ -401,6 +409,7 @@ function parse(argv: string[]) {
       "seula-cmd": { type: "string" },
       "previous-spec": { type: "string" },
       approved: { type: "string" },
+      spec: { type: "string" },
       "spec-dir": { type: "string" },
       "design-first": { type: "boolean", default: false },
       "seula-ref": { type: "string" },
