@@ -67,3 +67,27 @@ export function renderSpecWriterPrompt(config: SeulaConfig, input: SpecWriterInp
   };
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (m, name: string) => values[name] ?? m);
 }
+
+export interface PlannerInput {
+  runId: string;
+  specFile: string;
+  /** The spec as it was merged; G2 checks that the plan changed nothing else. */
+  approvedFile: string;
+  seulaCmd: string;
+  cwd?: string;
+}
+
+/** Renders the planner prompt (specs/agent-plugin.md criteria 12-14). It names the spec files; it never contains their text. */
+export function renderPlannerPrompt(_config: SeulaConfig, input: PlannerInput): string {
+  if (!/^[A-Za-z0-9._-]+$/.test(input.runId)) throw new Error(`Invalid run id "${input.runId}".`);
+  if (!/^[\w./-]+$/.test(input.specFile)) throw new Error(`Unexpected characters in the spec file path "${input.specFile}".`);
+  if (!/^[\w./-]+$/.test(input.approvedFile)) throw new Error(`Unexpected characters in the approved spec path "${input.approvedFile}".`);
+  const template = readFileSync(join(SEULA_ROOT, "prompts", "planner.md"), "utf8");
+  const values: Record<string, string> = {
+    RUN_ID: input.runId,
+    SPEC_FILE: input.specFile,
+    APPROVED_FILE: input.approvedFile,
+    SEULA: input.seulaCmd,
+  };
+  return template.replace(/\{\{([A-Z_]+)\}\}/g, (m, name: string) => values[name] ?? m);
+}

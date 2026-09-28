@@ -369,3 +369,15 @@ test("g2: gate g2 without a file exits 64, and an unknown gate lists g2", () => 
   assert.equal(unknown.code, 64);
   assert.match(unknown.stderr, /g2/);
 });
+
+test("agent-plugin criterion 12: seula prompt planner prints the prompt; a missing option or an unknown prompt exits 64", () => {
+  const d = workdir();
+  const args = ["prompt", "planner", "--run", "MEAL-4", "--spec", "specs/page-description.md", "--approved", ".seula/approved/page-description.md"];
+  const r = run(args, d);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /Spec file: specs\/page-description\.md/);
+  assert.equal(run(args.slice(0, -2), d).code, 64);
+  const unknown = run(["prompt", "painter"], d);
+  assert.equal(unknown.code, 64);
+  assert.match(unknown.stderr, /planner/);
+});
