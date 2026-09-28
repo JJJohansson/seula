@@ -45,6 +45,10 @@ confirming by a person.
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.
 - [`round-extras.md`](round-extras.md): skip a ticket with nothing new, warn after many rounds,
   and show earlier rounds in the pull request. Split from change B; decide after B1.
-- G2 plan coverage, G3 criterion citations in tests, G4 review, G5 smoke check: described in
+- [`g2-plan-gate.md`](g2-plan-gate.md) and [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md):
+  when a spec pull request is merged, an agent writes the plan into the spec, G2 checks that it
+  covers every criterion, and a person reviews it in a plan pull request. Drafted 28 Sep 2026,
+  waiting for approval.
+- G3 criterion citations in tests, G4 review, G5 smoke check: described in
   [`../docs/quality-gates.md`](../docs/quality-gates.md); specs to be written before they are
   built.

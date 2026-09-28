@@ -1,6 +1,6 @@
 # FEATURE: Run files and status
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5, 9 and 10, and criteria 11–13, drafted 27 Sep 2026, not approved.**
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5, 9 and 10, and criteria 11–13, drafted 27 Sep 2026, not approved.** **Plan step: the change to criterion 3 (after G2, a person reviews the plan) drafted 28 Sep 2026, not approved** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
 
 ## OVERVIEW
 Every gate result for a feature is appended to one JSON file, and `seula status` shows where
@@ -30,7 +30,7 @@ see at a glance which features wait for their decision.
 2. A run id may contain only letters, digits, `.`, `_` and `-`. Any other id is rejected before a
    file is written.
 3. After a pass or a skip, `step` and `waitingOn` become: after G0, spec (agent); after G1, spec
-   review (human); after G2, build (agent); after G3, verify (agent); after G4, merge (human);
+   review (human); after G2, plan review (human); after G3, verify (agent); after G4, merge (human);
    after G5, done (none).
 4. After a back, the run waits on the agent, except after a G0 back, when it waits on a person.
    After an unsure result, the run waits on a person.
