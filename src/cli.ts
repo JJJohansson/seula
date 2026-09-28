@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 import { calibrate, calibrationReport, type LabelsFile } from "./calibrate.ts";
 import { type SeulaConfig, type TrackerType, isTrackerState, loadConfig, trackerStates } from "./config.ts";
 import { CredentialError } from "./errors.ts";
+import { checkPlan } from "./gates/checkPlan.ts";
 import { type CheckSpecResult, checkSpec } from "./gates/checkSpec.ts";
 import { type JevSpecResult, feedbackLines, jevSpec } from "./gates/jevSpec.ts";
 import { type JevTicketResult, jevTicket, wordCount } from "./gates/jevTicket.ts";
@@ -24,6 +25,7 @@ const HELP = `seula: spec-driven quality gates for AI coding agents
 Usage:
   seula gate g0 --ticket <file>  G0: is the ticket ready to write a spec from?
   seula gate g1 <spec.md>        G1: format rules, then Jev on each criterion
+  seula gate g2 <spec.md>        G2: the plan covers every criterion (--approved <file>: nothing else changed)
   seula check-spec <spec.md>…    G1 format rules only (no model); several specs allowed
   seula jev-spec <spec.md>       G1 Jev questions only
   seula status                   Where each feature is, gate by gate
@@ -93,6 +95,7 @@ interface Options {
   append?: string;
   "seula-cmd"?: string;
   "previous-spec"?: string;
+  approved?: string;
   "spec-dir"?: string;
   "design-first"?: boolean;
   "seula-ref"?: string;
@@ -163,7 +166,8 @@ async function main(argv: string[]): Promise<number> {
     case "gate": {
       const gate = (rest[0] ?? "").toUpperCase();
       if (gate === "G0") return gateG0(opts, config, out);
-      if (gate !== "G1") throw new UsageError(`Unknown gate "${rest[0] ?? ""}". Available: g0, g1.`);
+      if (gate === "G2") return gateG2(rest[1], opts, config, out);
+      if (gate !== "G1") throw new UsageError(`Unknown gate "${rest[0] ?? ""}". Available: g0, g1, g2.`);
       const file = need(rest[1], "gate g1 <spec.md>");
       const spec = readSpec(file, config);
       const check = checkSpec(spec, config);
@@ -395,6 +399,7 @@ function parse(argv: string[]) {
       append: { type: "string" },
       "seula-cmd": { type: "string" },
       "previous-spec": { type: "string" },
+      approved: { type: "string" },
       "spec-dir": { type: "string" },
       "design-first": { type: "boolean", default: false },
       "seula-ref": { type: "string" },
@@ -436,6 +441,22 @@ function loadDotEnv(): void {
   } catch {
     // No .env here; the environment is enough.
   }
+}
+
+/** G2 (specs/g2-plan-gate.md): the plan's script rules. The Jev flags come in the next unit, so Jev is reported as skipped. */
+function gateG2(file: string | undefined, opts: Options, config: SeulaConfig, out: (text: string, data: unknown) => void): number {
+  const path = need(file, "gate g2 <spec.md> [--approved <file>]");
+  const approved = opts.approved === undefined ? undefined : readFileSync(opts.approved, "utf8");
+  const check = checkPlan(readFileSync(path, "utf8"), config, approved);
+  const lines = [`G2 · plan · ${path}`, ...check.findings.map((f) => `plan · ${f.rule}: ${f.message}`)];
+  if (!check.ok) {
+    lines.push(`Result: BACK (${check.findings.length} errors)`);
+    out(lines.join("\n"), { decision: "back", findings: check.findings });
+    return EXIT.back;
+  }
+  lines.push(`Plan rules: pass (${check.tasks.length} tasks).`, "Jev flags: skipped.", "Result: PASS");
+  out(lines.join("\n"), { decision: "pass", tasks: check.tasks.length, jev: "skipped" });
+  return EXIT.pass;
 }
 
 function readSpec(file: string, config: SeulaConfig): ParsedSpec {

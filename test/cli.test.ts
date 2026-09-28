@@ -349,3 +349,23 @@ test("trackers criterion 16: a branch with no key, or both --key and --branch, e
     assert.deepEqual(r.requests, [], args.join(" "));
   }
 });
+
+test("g2 criteria 8-9: gate g2 exits 0 with Jev skipped when the rules pass, and 1 with plan lines when one fails", () => {
+  const d = workdir();
+  copyFileSync(join(FIXTURES, "plan-spec.md"), join(d, "plan.md"));
+  const ok = run(["gate", "g2", "plan.md"], d);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.match(ok.stdout, /Jev.*skipped/i);
+  writeFileSync(join(d, "gap.md"), readFileSync(join(d, "plan.md"), "utf8").replace("Criteria: 3.", "Criteria: 2."));
+  const gap = run(["gate", "g2", "gap.md"], d);
+  assert.equal(gap.code, 1);
+  assert.match(gap.stdout, /^plan · coverage: .*criterion 3/m);
+});
+
+test("g2: gate g2 without a file exits 64, and an unknown gate lists g2", () => {
+  const d = workdir();
+  assert.equal(run(["gate", "g2"], d).code, 64);
+  const unknown = run(["gate", "g9", "x.md"], d);
+  assert.equal(unknown.code, 64);
+  assert.match(unknown.stderr, /g2/);
+});
