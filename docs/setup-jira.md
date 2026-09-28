@@ -20,10 +20,12 @@ starts workflows that are on the default branch.
 
 Use a project (the free Jira Cloud plan is enough) whose workflow has these statuses:
 
-**Ready for spec → Needs input → Spec review → Approved → Code review → Done**
+**Ready for spec → Needs input → Spec review → Planning → Code review → Done**
 
 For a first setup, allow transitions from any status to any status. seula moves tickets by the
-**status name**; if yours differ, set them in `seula.config.json` → `tracker.states`.
+**status name**; if yours differ, set them in `seula.config.json` → `tracker.states`. Planning
+is where [board sync](#7-board-sync-optional) moves a ticket when its spec pull request is
+merged.
 
 ## 3. Tokens
 
@@ -92,6 +94,30 @@ GitHub answers a correct request with **204 No Content**; the rule's audit log s
    back: a comment with questions, and the ticket in **Needs input**.
 4. Answer the questions in a comment on that ticket, then move it to **Ready for spec** again.
    seula reads the comments too, so the answer counts. The earlier comments stay on the ticket.
+
+## 7. Board sync (optional)
+
+`init` also writes `.github/workflows/seula-board-sync.yml`. It keeps the ticket in step with
+its spec pull request, with the Jira secrets from step 4 and no others.
+
+1. **Move the ticket to Planning when the spec is merged.** Add the status name to
+   `seula.config.json`:
+
+   ```json
+   "tracker": { "type": "jira", "states": { "needsInput": "Needs input", "specReview": "Spec review", "planning": "Planning" } }
+   ```
+
+   Without `tracker.states.planning`, a merge moves nothing.
+2. **Block merging a spec that needs input.** Each spec pull request gets the check
+   `seula / ticket state`. It fails while the ticket is in **Needs input**. To make it block the
+   merge, go to the repository's **Settings → Rules → Rulesets** (or the older branch protection
+   rules), target the default branch, turn on **Require status checks to pass**, and add
+   `seula / ticket state`. GitHub lists the check only after it has run once, so open or update
+   a spec pull request first. Pull requests from other branches skip the check, and a skipped
+   check counts as passed.
+
+A person who moves the ticket by hand doesn't start the check again: re-run it from the pull
+request page. See [troubleshooting](troubleshooting.md#board-sync-steps) for its steps.
 
 ## Options
 

@@ -1,12 +1,15 @@
-# Troubleshooting the ticket-to-spec workflow
+# Troubleshooting seula's workflows
 
 When a run of `ticket-to-spec.yml` goes wrong, seula names the step that failed. This page has
 one entry for each step, under the step's name as GitHub Actions shows it. Find the step, then
-follow its entry.
+follow its entry. Board sync (`board-sync.yml`) has its own entries at the end: see
+[Board sync steps](#board-sync-steps).
 
 For setting seula up, see [Jira](setup-jira.md) or [GitHub Issues](setup-github-issues.md).
 
 ## Where to look
+
+These places are for ticket-to-spec. Board sync never comments on the ticket.
 
 1. **The ticket.** A technical failure posts one comment that starts with "seula failed to
    run". It names the step that failed, or why Claude stopped, and links the run. The ticket
@@ -208,3 +211,66 @@ summary, and posts "seula failed to run" on the ticket.
 run shows red.
 
 **What to check:** the steps before it. Blocked means G1's loop limit: see the ticket.
+
+## Board sync steps
+
+`board-sync.yml` runs on the pull requests of `seula/` branches. Its "ticket state" job is the
+check `seula / ticket state` on the spec pull request. Its "move on merge" job runs when the
+spec pull request is merged. It never comments on the ticket. Look at the check on the pull
+request, the run's job summary, and the step's log. Both jobs are skipped for other branches and
+for forks: that is not an error.
+
+### Check out the config
+
+**What it does:** checks out only `seula.config.json`, from the pull request's base commit, so
+the pull request can't change the state names it is checked against.
+
+**When it fails:** the job fails before seula runs. A missing `seula.config.json` is not a
+failure: seula then uses its defaults, and the move to Planning is skipped.
+
+**What to check:** that the base branch still exists, and that the caller workflow grants
+`contents: read`.
+
+### Check out seula
+
+**What it does:** checks out seula at the `seula-ref` of the caller workflow.
+
+**When it fails:** the job fails before seula runs.
+
+**What to check:** that `seula-ref` exists in the seula repository, and that the repository is
+reachable: public, or shared in its Actions settings.
+
+### Check the ticket state (criterion 4)
+
+**What it does:** takes the ticket key from the branch name and reads the ticket's state. It
+fails while the ticket is in *Needs input*, so a repo that requires the check can't merge.
+
+**When it fails:**
+- "… needs input. Answer the questions on the ticket first, then re-run this check." This is
+  the check working. Answer on the ticket and move it to *Ready for spec*. The next seula run
+  pushes to the pull request, and the check runs again. After a move by hand, re-run the check
+  from the pull request page.
+- Exit 64: the branch name gives no ticket key, for example `seula/notes`. seula calls no
+  tracker.
+- Exit 77: the tracker refused the credential. The log names it: `JIRA_EMAIL` and
+  `JIRA_API_TOKEN` for Jira, `GITHUB_TOKEN` for GitHub Issues.
+- Exit 70: another tracker error. The log has the HTTP status.
+
+**What to check:** for 77, the Jira secrets passed by the caller workflow, or for GitHub Issues
+that the caller grants `issues: write`. For a check that stays red after the ticket moved:
+re-run it, because a move in the tracker doesn't start the check.
+
+### Move the ticket to Planning (criterion 5)
+
+**What it does:** after a merge, moves the ticket to Planning, whatever state it is in. The job
+summary shows the result.
+
+**When it fails:**
+- "Moved nothing: tracker.states.planning is not set" is not a failure. Set it to turn the move
+  on.
+- Exit 70 with "No Jira transition to …": the Jira workflow has no transition to the Planning
+  status from the ticket's status.
+- Exit 77 or 64: as for the ticket state check.
+
+**What to check:** the status or label name in `tracker.states.planning`, and in Jira that every
+status can move to Planning.
