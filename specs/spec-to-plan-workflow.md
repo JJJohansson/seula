@@ -1,6 +1,6 @@
 # FEATURE: Reusable spec-to-plan workflow
 
-> **Status:** Idea. Drafted 28 Sep 2026 with Janne, not approved.
+> **Status:** Approved (28 Sep 2026). Not yet built.
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `spec-to-plan.yml`. When a spec pull request is merged,

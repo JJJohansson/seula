@@ -1,6 +1,6 @@
 # FEATURE: G2 plan gate
 
-> **Status:** Idea. Drafted 28 Sep 2026 with Janne, not approved.
+> **Status:** Approved (28 Sep 2026). Not yet built.
 
 ## OVERVIEW
 A command, `seula gate g2 <spec>`, that checks the plan in an approved spec's `## PLAN` section

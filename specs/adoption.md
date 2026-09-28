@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 drafted 28 Sep 2026, not approved** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, four short

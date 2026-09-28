@@ -1,6 +1,6 @@
 # FEATURE: Run files and status
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5, 9 and 10, and criteria 11–13, drafted 27 Sep 2026, not approved.** **Plan step: the change to criterion 3 (after G2, a person reviews the plan) drafted 28 Sep 2026, not approved** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5, 9 and 10, and criteria 11–13, drafted 27 Sep 2026, not approved.** **Plan step: the change to criterion 3 (after G2, a person reviews the plan) approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
 
 ## OVERVIEW
 Every gate result for a feature is appended to one JSON file, and `seula status` shows where
