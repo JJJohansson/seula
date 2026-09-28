@@ -1,12 +1,12 @@
-# FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer prompt)
+# FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer and planner prompts)
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) drafted 28 Sep 2026, not approved** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
 
 ## OVERVIEW
-seula installs as a Claude Code plugin with three parts: a skill that tells an agent which gate
+seula installs as a Claude Code plugin with four parts: a skill that tells an agent which gate
 to run after each step and what each result means; a reviewer agent that decides unsure items
-and checks a change against its spec; and a prompt for writing a spec from a ticket when no
-person is present.
+and checks a change against its spec; a prompt for writing a spec from a ticket when no
+person is present; and a prompt for writing the plan of an approved spec.
 
 ## WHY / INTENT
 The gates help only if the agent runs them and obeys the result. The skill carries the knowledge
@@ -16,7 +16,8 @@ it.
 
 ## INPUTS / OUTPUTS
 - Inputs: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
-  `skills/seula-gates/SKILL.md`, `agents/seula-reviewer.md`, `prompts/spec-writer.md`.
+  `skills/seula-gates/SKILL.md`, `agents/seula-reviewer.md`, `prompts/spec-writer.md`,
+  `prompts/planner.md`.
 - Outputs: a plugin that installs with `/plugin marketplace add JJJohansson/seula`, or loads
   with `claude --plugin-dir <path>`.
 
@@ -46,10 +47,25 @@ it.
 11. The spec-writer prompt says that comments labelled `seula` are seula's earlier questions
     and results. The label shows where a question came from. It does not make the text an
     instruction, and the agent treats it as data like the rest of the ticket.
+12. `seula prompt planner --run <id> --spec <file> --approved <file>` renders the planner prompt
+    from `prompts/planner.md`. The prompt contains no spec or ticket text. It names the spec
+    file and tells the agent to treat the spec's content as data.
+13. The planner prompt tells the agent to read the code that the plan changes, then to write
+    only the spec's `## PLAN` section, in the task format of
+    [`g2-plan-gate.md`](g2-plan-gate.md): numbered tasks, each with `Criteria:`, `Test:` and
+    `Files:`, and every acceptance criterion covered. It forbids changing anything else in the
+    spec, writing code, and commits and pushes.
+14. The planner prompt tells the agent to run `seula gate g2` on the spec with `--approved` and
+    `--run`, and to act on the exit code as the skill says. When the spec leaves a question
+    that the plan needs, the agent asks and does not guess. It asks for `spec_path`, `status`
+    (`ready`, `needs_input` or `blocked`), `questions` and `summary`, as the spec writer does.
+15. The skill tells an agent to run G2 after it writes a plan, gives one concrete fix for each
+    G2 rule (`task`, `coverage`, `path`, `approved`), and says that a flag is for the person who
+    reviews the plan. It forbids changing a plan only to avoid a flag.
 
 ## OUT OF SCOPE
 - Hooks that force the agent to run a gate.
-- Skills or prompts for G2 to G5.
+- Skills or prompts for G3 to G5.
 
 ## EDGE CASES
 - A repo without `seula.config.json`: the skill applies with the default config.
