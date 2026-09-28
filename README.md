@@ -22,7 +22,9 @@ Each gate uses the cheapest check that can decide:
 - **A Claude reviewer in a fresh context** when Jev is unsure, and to write feedback.
 - **You**, for intent (the spec) and the merge.
 
-The full gate definitions are in [`docs/quality-gates.md`](docs/quality-gates.md).
+The full gate definitions are in [`docs/quality-gates.md`](docs/quality-gates.md). For the whole
+flow (what runs where, how it is secured, and how a team uses it ticket by ticket), see
+[`docs/how-it-works.md`](docs/how-it-works.md).
 
 ## Status
 
