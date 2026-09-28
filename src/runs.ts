@@ -96,7 +96,8 @@ export function claudeRunFromOutput(output: unknown, now: Date = new Date()): Cl
 const AFTER_PASS: Record<GateId, { step: string; waitingOn: WaitingOn }> = {
   G0: { step: "spec", waitingOn: "agent" },
   G1: { step: "spec review", waitingOn: "human" }, // you approve the spec
-  G2: { step: "build", waitingOn: "agent" },
+  G2: { step: "plan review", waitingOn: "human" }, // you review the plan
+
   G3: { step: "verify", waitingOn: "agent" },
   G4: { step: "merge", waitingOn: "human" }, // you merge
   G5: { step: "done", waitingOn: "none" },
