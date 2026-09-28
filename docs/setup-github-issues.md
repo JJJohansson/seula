@@ -61,6 +61,32 @@ be changed in `seula.config.json` → `tracker`.
 5. Answer the questions in a comment on that issue, then add the label
    `seula:ready-for-spec` again. seula reads the comments too, so the answer counts.
 
+## 6. Board sync (optional)
+
+`init` also writes `.github/workflows/seula-board-sync.yml`. It keeps the issue in step with its
+spec pull request. It needs no secret: the caller workflow grants `issues: write` to the
+workflow's own `GITHUB_TOKEN`.
+
+1. **Label the issue `seula:planning` when the spec is merged.** Add the label name to
+   `seula.config.json`:
+
+   ```json
+   "tracker": { "type": "github", "states": { "needsInput": "seula:needs-input", "specReview": "seula:spec-review", "planning": "seula:planning" } }
+   ```
+
+   Without `tracker.states.planning`, a merge changes no label. seula creates the label the
+   first time it needs it.
+2. **Block merging a spec that needs input.** Each spec pull request gets the check
+   `seula / ticket state`. It fails while the issue has the `seula:needs-input` label. To make
+   it block the merge, go to the repository's **Settings → Rules → Rulesets** (or the older
+   branch protection rules), target the default branch, turn on **Require status checks to
+   pass**, and add `seula / ticket state`. GitHub lists the check only after it has run once, so
+   open or update a spec pull request first. Pull requests from other branches skip the check,
+   and a skipped check counts as passed.
+
+A person who changes the labels by hand doesn't start the check again: re-run it from the pull
+request page. See [troubleshooting](troubleshooting.md#board-sync-steps) for its steps.
+
 ## Options
 
 - **Design first:** `init --design-first` (or `"design": { "required": true }` in the config).

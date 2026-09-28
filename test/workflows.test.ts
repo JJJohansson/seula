@@ -654,22 +654,52 @@ const readDoc = (name: string): string => {
     return "";
   }
 };
-/** The page's `### ` entries: their headings and their text up to the next heading. */
-function troubleshootingEntries(): { heading: string; text: string }[] {
-  const parts = readDoc("troubleshooting.md").split(/^(?=#{2,3} )/m);
-  return parts.filter((p) => p.startsWith("### ")).map((p) => ({ heading: p.slice(4, p.indexOf("\n")).trim(), text: p }));
+/** The page's `### ` entries, with the `## ` section each is in: their headings and their text up to the next heading. */
+function troubleshootingEntries(section?: string): { heading: string; text: string }[] {
+  const entries: { section: string; heading: string; text: string }[] = [];
+  let current = "";
+  for (const part of readDoc("troubleshooting.md").split(/^(?=#{2,3} )/m)) {
+    if (part.startsWith("## ")) current = part.slice(3, part.indexOf("\n")).trim();
+    if (part.startsWith("### ")) entries.push({ section: current, heading: part.slice(4, part.indexOf("\n")).trim(), text: part });
+  }
+  return entries.filter((e) => section === undefined || e.section === section);
 }
 
+const BOARD_SYNC = readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "board-sync.yml"), "utf8").replace(/\r\n/g, "\n");
+/** The step names of board-sync.yml, each once: both jobs check out the config and seula. */
+const boardSyncStepNames = (): string[] => [...new Set([...BOARD_SYNC.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1] ?? ""))];
+
 test("adoption criterion 12: every step of ticket-to-spec.yml has an entry in docs/troubleshooting.md, under its Actions name", () => {
-  const headings = troubleshootingEntries().map((e) => e.heading);
+  const headings = troubleshootingEntries("Steps").map((e) => e.heading);
   for (const name of stepNames()) assert.ok(headings.includes(name), `no entry for the step "${name}"`);
 });
 
 test("adoption criterion 12: the page has no entry for a step that no longer exists", () => {
   const names = stepNames();
-  const entries = troubleshootingEntries();
+  const entries = troubleshootingEntries("Steps");
   assert.ok(entries.length > 0, "the page has entries");
   for (const { heading } of entries) assert.ok(names.includes(heading), `"${heading}" is not a step of the workflow`);
+});
+
+test("adoption criterion 12: every step of board-sync.yml has an entry under Board sync steps, under its Actions name", () => {
+  const headings = troubleshootingEntries("Board sync steps").map((e) => e.heading);
+  assert.ok(boardSyncStepNames().length >= 4, "board-sync.yml has named steps");
+  for (const name of boardSyncStepNames()) assert.ok(headings.includes(name), `no board sync entry for the step "${name}"`);
+});
+
+test("adoption criterion 12: the board sync section has no entry for a step that no longer exists", () => {
+  const entries = troubleshootingEntries("Board sync steps");
+  assert.ok(entries.length > 0, "the section has entries");
+  for (const { heading } of entries) assert.ok(boardSyncStepNames().includes(heading), `"${heading}" is not a step of board-sync.yml`);
+});
+
+test("board-sync criterion 10: both setup guides say how to turn on Planning and require the ticket state check", () => {
+  for (const guide of ["setup-jira.md", "setup-github-issues.md"]) {
+    const text = readDoc(guide);
+    assert.match(text, /tracker\.states\.planning/, `${guide}: the planning setting`);
+    assert.match(text, /`seula \/ ticket state`/, `${guide}: the required check's name`);
+    assert.match(text, /[Rr]uleset|branch protection/, `${guide}: where to require it`);
+  }
 });
 
 test("adoption criterion 12: every entry says what the step does, how its failure looks, and what to check", () => {
