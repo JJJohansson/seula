@@ -4,7 +4,7 @@ import { dirname, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { calibrate, calibrationReport, type LabelsFile } from "./calibrate.ts";
 import { type SeulaConfig, type TrackerType, isTrackerState, loadConfig, trackerStates } from "./config.ts";
-import { CredentialError } from "./errors.ts";
+import { CredentialError, UsageError } from "./errors.ts";
 import { checkPlan } from "./gates/checkPlan.ts";
 import { jevPlan, planFeedbackLines } from "./gates/jevPlan.ts";
 import { type CheckSpecResult, checkSpec } from "./gates/checkSpec.ts";
@@ -33,7 +33,7 @@ Usage:
   seula update --run <id>        Add --claude-usd <n> or --claude-result <file>, --ticket-url <url> or --pr-url <url> to a run
   seula calibrate <labels.json>  Pick Jev cut-offs from labeled examples
 
-  seula init --tracker <jira|github>   Set seula up in this repo (config + workflows)
+  seula init --tracker <jira|github> --seula-ref <full SHA|tag|branch>   Set seula up in this repo (config + workflows)
   seula tracker ticket --event <file> --out <file>        Ticket file from a trigger event
   seula tracker comments --key <key> --append <file>      Add the ticket's comments to a ticket file
   seula tracker comment --key <key> --text-file <file>    Comment on a ticket
@@ -54,7 +54,7 @@ Options:
   --config <file>     Config file (default: seula.config.json)
   --json              Machine-readable output
   --tracker <type>    jira or github (default: tracker.type in the config)
-  init: --spec-dir <dir>  --design-first  --seula-ref <ref>  --force
+  init: --spec-dir <dir>  --design-first  --force
 
 Environment:
   TYPESAFE_API_KEY    Jev API key. Read from the environment or a .env file here.
@@ -246,7 +246,7 @@ async function main(argv: string[]): Promise<number> {
     }
 
     case "init": {
-      const tracker = need(opts.tracker, "init --tracker <jira|github>");
+      const tracker = need(opts.tracker, "init --tracker <jira|github> --seula-ref <full SHA|tag|branch>");
       if (tracker !== "jira" && tracker !== "github") throw new UsageError(`Unknown tracker "${tracker}". Use jira or github.`);
       const result = init({
         cwd: process.cwd(),
@@ -370,8 +370,6 @@ async function gateG0(opts: Options, config: SeulaConfig, out: (text: string, da
   out(formatTicket(ticketFile, result) + blockedText(run), { ...result, blocked: run?.blocked });
   return run?.blocked ? EXIT_BLOCKED : EXIT[result.decision];
 }
-
-class UsageError extends Error {}
 
 /** Stands in when a check returns before any model call. Calling it is a bug. */
 const NO_MODEL: DecisionModel = {

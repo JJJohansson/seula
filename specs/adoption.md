@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The required `--seula-ref` (the inputs, criteria 3 and 15) approved 28 Sep 2026, not built:** `init` wrote `@v<version>`, a tag that doesn't exist.
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The required `--seula-ref` (the inputs, criteria 3 and 15) approved and built 28 Sep 2026:** `init` wrote `@v<version>`, a tag that doesn't exist.
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, four short
