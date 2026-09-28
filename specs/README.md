@@ -43,7 +43,7 @@ confirming by a person.
 - [`g2-plan-gate.md`](g2-plan-gate.md) and [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)
   (approved 28 Sep 2026): when a spec pull request is merged, an agent writes the plan into the
   spec, G2 checks that it covers every criterion, and a person reviews it in a plan pull
-  request. Not yet built.
+  request. G2's script rules built; the rest not yet.
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.

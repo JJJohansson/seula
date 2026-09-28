@@ -1,6 +1,6 @@
 # FEATURE: G2 plan gate
 
-> **Status:** Approved (28 Sep 2026). Not yet built.
+> **Status:** Approved (28 Sep 2026). Unit 1 built 28 Sep 2026: the script rules (criteria 1–5), and the result without Jev (criteria 8–9). The Jev flags and the run file (criteria 6–7, 9–10) not yet.
 
 ## OVERVIEW
 A command, `seula gate g2 <spec>`, that checks the plan in an approved spec's `## PLAN` section
