@@ -6,10 +6,12 @@ and comments back on the issue. About 15 minutes.
 
 ## 1. Run `init`
 
-From the repo's root:
+From the repo's root. seula has no release yet, so pin a full commit SHA of seula with
+`--seula-ref`:
 
 ```bash
-npx github:JJJohansson/seula init --tracker github
+git ls-remote https://github.com/JJJohansson/seula main    # the latest commit SHA
+npx github:JJJohansson/seula init --tracker github --seula-ref <commit SHA>
 ```
 
 Commit the files it writes (`seula.config.json`, `.github/workflows/seula-*.yml`, and

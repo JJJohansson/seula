@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The required `--seula-ref` (the inputs, criteria 3 and 15) approved and built 28 Sep 2026:** `init` wrote `@v<version>`, a tag that doesn't exist.
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, four short
@@ -14,8 +14,8 @@ small enough to read in a minute, and updates come from seula by changing a pinn
 repo decides which of its secrets seula gets.
 
 ## INPUTS / OUTPUTS
-- Inputs: `--tracker <jira|github>` (required), `--spec-dir <dir>`, `--design-first`,
-  `--seula-ref <ref>`, `--force`.
+- Inputs: `--tracker <jira|github>` (required), `--seula-ref <ref>` (required while seula has no
+  release; criterion 15), `--spec-dir <dir>`, `--design-first`, `--force`.
 - Outputs: `seula.config.json`; `.github/workflows/seula-ticket-to-spec.yml`;
   `.github/workflows/seula-spec-check.yml`; `.github/workflows/seula-board-sync.yml`;
   `.github/workflows/seula-spec-to-plan.yml`;
@@ -29,7 +29,7 @@ repo decides which of its secrets seula gets.
 3. It writes `.github/workflows/seula-ticket-to-spec.yml`: a caller workflow of at most 30
    lines that triggers on the tracker's event (Jira: `repository_dispatch` of type
    `seula-ticket`; GitHub: `issues` labeled `seula:ready-for-spec`) and calls seula's
-   `ticket-to-spec.yml` at the `--seula-ref` (default: the seula version running `init`). The
+   `ticket-to-spec.yml` at the `--seula-ref` (criterion 15). The
    caller passes only the secrets that seula's workflow uses for that tracker, each by name, and
    never `secrets: inherit`. GitHub: `ANTHROPIC_API_KEY`, `SEULA_GH_TOKEN`, `TYPESAFE_API_KEY`.
    Jira: the same three plus `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`. seula's
@@ -70,6 +70,11 @@ repo decides which of its secrets seula gets.
     at the `--seula-ref` (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). It
     passes the same secrets, by the same names, as the ticket-to-spec caller (criterion 3), and
     never `secrets: inherit`.
+15. `--seula-ref` is required while seula has no release. Without it, `init` exits 64, writes no
+    file, and says to pass a full commit SHA, a tag or a branch of seula. A ref of 7 to 39
+    hexadecimal characters exits 64 and writes no file: GitHub Actions accepts only a full
+    40-character commit SHA in `uses:`, so the message asks for the full SHA. A full SHA, a tag
+    or a branch name is written into every caller workflow as it is given.
 
 ## OUT OF SCOPE
 - Creating GitHub secrets, Jira automation rules or GitHub labels (the setup guides cover them;

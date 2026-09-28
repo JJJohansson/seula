@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CONFIG_FILE, DEFAULT_STATES, type TrackerType } from "./config.ts";
+import { UsageError } from "./errors.ts";
 import { SEULA_ROOT } from "./prompts.ts";
 
 export interface InitOptions {
@@ -31,11 +32,6 @@ export interface InitResult {
 const TEMPLATE_PATH = ".seula/spec-template.md";
 const TRIGGER_LABEL = "seula:ready-for-spec";
 
-export function seulaVersion(): string {
-  const pkg = JSON.parse(readFileSync(join(SEULA_ROOT, "package.json"), "utf8")) as { version: string };
-  return pkg.version;
-}
-
 /** adoption criterion 2: specs/, else docs/specs/ when it exists, else specs/. */
 export function detectSpecDir(cwd: string): string {
   if (existsSync(join(cwd, "specs"))) return "specs";
@@ -43,12 +39,29 @@ export function detectSpecDir(cwd: string): string {
   return "specs";
 }
 
+/**
+ * adoption criterion 15: while seula has no release, the ref is required. GitHub Actions accepts
+ * only a full 40-character commit SHA in `uses:`, so a shorter hex ref is refused.
+ */
+function checkSeulaRef(ref: string | undefined): string {
+  if (ref === undefined || ref === "") {
+    throw new UsageError(
+      "Pass --seula-ref: seula has no release yet. Use a full 40-character commit SHA of seula (for example from " +
+        "`git ls-remote https://github.com/JJJohansson/seula main`), a tag, or a branch.",
+    );
+  }
+  if (!/^[\w./-]+$/.test(ref)) throw new UsageError(`Invalid seula ref "${ref}".`);
+  if (/^[0-9a-f]{7,39}$/i.test(ref)) {
+    throw new UsageError(`"${ref}" looks like a short commit SHA. GitHub Actions needs the full 40-character SHA in uses:.`);
+  }
+  return ref;
+}
+
 export function init(opts: InitOptions): InitResult {
-  if (opts.tracker !== "jira" && opts.tracker !== "github") throw new Error(`Unknown tracker "${String(opts.tracker)}". Use jira or github.`);
+  if (opts.tracker !== "jira" && opts.tracker !== "github") throw new UsageError(`Unknown tracker "${String(opts.tracker)}". Use jira or github.`);
   const specDir = (opts.specDir ?? detectSpecDir(opts.cwd)).replace(/\/+$/, "");
-  if (!/^[\w.-]+(\/[\w.-]+)*$/.test(specDir) || specDir.split("/").includes("..")) throw new Error(`Invalid spec directory "${specDir}".`);
-  const ref = opts.seulaRef ?? `v${seulaVersion()}`;
-  if (!/^[\w./-]+$/.test(ref)) throw new Error(`Invalid seula ref "${ref}".`);
+  if (!/^[\w.-]+(\/[\w.-]+)*$/.test(specDir) || specDir.split("/").includes("..")) throw new UsageError(`Invalid spec directory "${specDir}".`);
+  const ref = checkSeulaRef(opts.seulaRef);
 
   const result: InitResult = { files: [], warnings: [], nextSteps: [] };
   if (!existsSync(join(opts.cwd, ".git"))) result.warnings.push("This folder is not a git repository. The workflows need a GitHub repository.");

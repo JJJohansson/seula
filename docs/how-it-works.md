@@ -144,10 +144,12 @@ model) is in [`../specs/security.md`](../specs/security.md).
 The full steps are in the setup guide for your tracker: [Jira](setup-jira.md) or
 [GitHub Issues](setup-github-issues.md). In short:
 
-1. **Run `init`** in the repo's root, then merge the files it writes to the default branch:
+1. **Run `init`** in the repo's root, with a full commit SHA of seula (there is no release
+   yet), then merge the files it writes to the default branch:
 
    ```bash
-   npx github:JJJohansson/seula init --tracker jira    # or --tracker github
+   git ls-remote https://github.com/JJJohansson/seula main    # the latest commit SHA
+   npx github:JJJohansson/seula init --tracker jira --seula-ref <commit SHA>    # or --tracker github
    ```
 
 2. **Create the tokens:** a dispatch token for the Jira rule (Jira only), a seula bot token
