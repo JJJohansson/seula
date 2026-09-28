@@ -1,0 +1,20 @@
+# seula: keep a GitHub issue in step with its spec pull request. A check fails while the issue
+# needs input; a merge moves the issue to Planning (set tracker.states.planning to turn it on).
+# Setup: https://github.com/JJJohansson/seula/blob/main/docs/setup-github-issues.md
+name: seula · board sync
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, closed]
+
+# issues: write lets seula change the issue's state label with this workflow's own token.
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  seula:
+    uses: JJJohansson/seula/.github/workflows/board-sync.yml@{{REF}}
+    with:
+      tracker: github
+      seula-ref: {{REF}}

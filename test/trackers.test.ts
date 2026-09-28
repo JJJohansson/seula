@@ -407,3 +407,25 @@ test("trackers criterion 15: planning has no default for either tracker", () => 
   assert.equal("planning" in DEFAULT_STATES.github, false);
   assert.equal("planning" in config().tracker.states, false);
 });
+
+// Board sync criterion 2, trackers criterion 16: the key from the start of a seula branch name.
+test("trackers criterion 16: the key comes from the start of a seula branch name", () => {
+  const jira = new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira);
+  assert.equal(jira.keyFromBranch("seula/meal-4"), "MEAL-4");
+  assert.equal(jira.keyFromBranch("seula/meal-3-copy-ingredients-to-clipboard"), "MEAL-3");
+  assert.equal(jira.keyFromBranch("seula/ab2-17"), "AB2-17");
+  const gh = new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l");
+  assert.equal(gh.keyFromBranch("seula/gh-42"), "42");
+  assert.equal(gh.keyFromBranch("seula/gh-42-dark-mode"), "42");
+});
+
+test("trackers criterion 16: a branch name that gives no key is a usage error", () => {
+  const jira = new JiraTracker(JIRA_ENV, DEFAULT_STATES.jira);
+  const gh = new GitHubTracker(GH_ENV, DEFAULT_STATES.github, "l");
+  for (const name of ["seula/notes", "seula/meal-4x", "feature/meal-4", "seula/", "", "seula/meal-4; rm -rf /"]) {
+    assert.throws(() => jira.keyFromBranch(name), TicketError, JSON.stringify(name));
+  }
+  for (const name of ["seula/gh-42x", "seula/gh-0", "seula/42", "seula/meal-4", "gh-42"]) {
+    assert.throws(() => gh.keyFromBranch(name), TicketError, JSON.stringify(name));
+  }
+});

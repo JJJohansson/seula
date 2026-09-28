@@ -1,4 +1,4 @@
-/** Jira Cloud adapter (specs/trackers.md criteria 3, 5, 6, 8, 10, 14). */
+/** Jira Cloud adapter (specs/trackers.md criteria 3, 5, 6, 8, 10, 14, 16). */
 import type { TrackerState, TrackerStates } from "../config.ts";
 import { type CommentPage, type Ticket, TicketError, type TicketState, type Tracker, TrackerApiError, failIfNotOk, httpsOrEmpty, matchState, stateName, ticketComment } from "./types.ts";
 
@@ -74,6 +74,15 @@ export class JiraTracker implements Tracker {
     if (!t) throw new TrackerApiError(`No Jira transition to "${target}" from ${key}'s current status.`);
     const post = await this.api(`/rest/api/2/issue/${key}/transitions`, { method: "POST", body: JSON.stringify({ transition: { id: t.id } }) });
     await failIfNotOk(post, `Jira move of ${key} to "${target}"`, CREDENTIAL);
+  }
+
+  /** `seula/meal-4` and `seula/meal-4-<spec name>` give MEAL-4: the run id in lowercase, then the end or a dash. */
+  keyFromBranch(branch: string): string {
+    const m = /^seula\/([a-z][a-z0-9]+-[0-9]+)(?:-|$)/i.exec(branch);
+    if (!m?.[1]) throw new TicketError(`No Jira key at the start of the branch name ${JSON.stringify(branch)}.`);
+    const key = m[1].toUpperCase();
+    this.checkKey(key);
+    return key;
   }
 
   private checkKey(key: string): void {

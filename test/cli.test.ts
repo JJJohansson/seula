@@ -329,3 +329,23 @@ test("trackers criteria 6 and 14: --state and --fail-on accept only needsInput, 
 test("trackers criterion 14: tracker state needs a key", () => {
   assert.equal(run(["tracker", "state", "--tracker", "github"], workdir()).code, 64);
 });
+
+test("trackers criterion 16: --branch reads the ticket named by a seula branch", async () => {
+  const r = await runAgainstGitHub(200, NEEDS_INPUT, ["state", "--branch", "seula/gh-1"], workdir());
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).key, "1");
+  assert.deepEqual(r.requests, ["GET /repos/acme/app/issues/1"]);
+});
+
+test("trackers criterion 16: a branch with no key, or both --key and --branch, exits 64 before any API call", async () => {
+  const d = workdir();
+  for (const args of [
+    ["state", "--branch", "seula/notes"],
+    ["move", "--branch", "feature/gh-1", "--state", "specReview"],
+    ["state", "--key", "1", "--branch", "seula/gh-1"],
+  ]) {
+    const r = await runAgainstGitHub(200, NEEDS_INPUT, args, d);
+    assert.equal(r.code, 64, args.join(" "));
+    assert.deepEqual(r.requests, [], args.join(" "));
+  }
+});

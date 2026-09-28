@@ -40,6 +40,8 @@ export interface Tracker {
   /** Checks a key given on the command line. */
   readonly keyPattern: RegExp;
   ticketFromEvent(event: unknown): Ticket;
+  /** The key at the start of a seula branch name (trackers criterion 16, board-sync criterion 2). */
+  keyFromBranch(branch: string): string;
   /** The newest `max` comments of the ticket, oldest first. */
   comments(key: string, max: number): Promise<CommentPage>;
   comment(key: string, text: string): Promise<void>;
