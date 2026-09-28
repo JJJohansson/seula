@@ -67,6 +67,20 @@ export interface SeulaConfig {
   tracker: TrackerConfig;
   design: DesignConfig;
   jev: JevConfig;
+  g2: G2Config;
+}
+
+/** A G2 flag question (specs/g2-plan-gate.md). "Yes" means the plan touches a risky area. */
+export interface G2Question {
+  instructions: string;
+  criteria?: { true: string; false: string };
+  /** The question passes when the probability of "yes" is at most 1 minus this (default 0.75). */
+  passAt?: number;
+}
+
+export interface G2Config {
+  /** Asked once per plan at G2. Replacing the set is all-or-nothing. */
+  questions: Record<string, G2Question>;
 }
 
 export type TrackerType = "jira" | "github";
@@ -123,6 +137,31 @@ export const DEFAULT_CONFIG: SeulaConfig = {
   ticketsDir: ".seula/tickets",
   tracker: { type: "github", states: {}, triggerLabel: "seula:ready-for-spec", maxComments: 30, maxCommentChars: 20000 },
   design: { required: false, linkPatterns: ["docs/design/", "figma.com/"] },
+  g2: {
+    questions: {
+      signIn: {
+        instructions: "Does the plan change sign-in, sessions or permissions?",
+        criteria: {
+          true: "A task changes how people sign in, how sessions work, or who can do what.",
+          false: "No task changes sign-in, sessions or permissions.",
+        },
+      },
+      storedData: {
+        instructions: "Does the plan change stored data or the database schema?",
+        criteria: {
+          true: "A task adds, removes or changes stored data, a database table or a migration.",
+          false: "No task changes stored data or the database schema.",
+        },
+      },
+      personalData: {
+        instructions: "Does the plan add, read, change or share personal data?",
+        criteria: {
+          true: "A task works with data about a person, such as a name, an email address or a location.",
+          false: "No task works with personal data.",
+        },
+      },
+    },
+  },
   jev: {
     endpoint: "https://api.typesafe.ai/v1/systemone",
     model: "jev-latest",
@@ -235,8 +274,10 @@ export function loadConfig(cwd: string = process.cwd(), file?: string): SeulaCon
 
 export function mergeConfig(base: SeulaConfig, over: DeepPartial<SeulaConfig>): SeulaConfig {
   const out = structuredClone(base);
-  const { jev, tracker, design, ...rest } = over;
+  const { jev, tracker, design, g2, ...rest } = over;
   Object.assign(out, rest);
+  // Replacing the G2 question set is all-or-nothing, like the Jev question sets below.
+  if (g2?.questions) out.g2.questions = g2.questions as Record<string, G2Question>;
   if (tracker) {
     const { states, ...trackerRest } = tracker;
     Object.assign(out.tracker, trackerRest);

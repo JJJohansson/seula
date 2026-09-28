@@ -38,7 +38,8 @@ The full gate definitions are in [`docs/quality-gates.md`](docs/quality-gates.md
 | — | Board sync: a check that blocks merging a spec pull request while its ticket needs input; a merge moves the ticket to Planning | ✅ (first real run pending) |
 | — | `seula init`: adopt seula in any repo | ✅ |
 | — | Design-first option (`design.required`) | ✅ |
-| G2–G5 | Plan coverage, criterion citations, review, smoke check | Planned |
+| G2 | The plan covers every criterion with a test and files; Jev flags sign-in, stored data and personal data | ✅ `seula gate g2` (the plan workflow is next) |
+| G3–G5 | Criterion citations, review, smoke check | Planned |
 | — | Dashboard ([spec](specs/dashboard.md)) | Idea |
 
 Each feature has a spec in [`specs/`](specs/). seula checks its own specs with its own gate.

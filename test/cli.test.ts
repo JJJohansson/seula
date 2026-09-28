@@ -6,9 +6,11 @@ import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { jevPlan } from "../src/gates/jevPlan.ts";
 import { jevSpec } from "../src/gates/jevSpec.ts";
 import { RecordingModel } from "../src/jev/model.ts";
-import { FakeModel, config, parse } from "./helpers.ts";
+import { FakeModel, config, fixture, parse } from "./helpers.ts";
+import { parseSpec } from "../src/spec.ts";
 
 const CLI = join(import.meta.dirname, "..", "src", "cli.ts");
 const FIXTURES = join(import.meta.dirname, "fixtures");
@@ -380,4 +382,53 @@ test("agent-plugin criterion 12: seula prompt planner prints the prompt; a missi
   const unknown = run(["prompt", "painter"], d);
   assert.equal(unknown.code, 64);
   assert.match(unknown.stderr, /planner/);
+});
+
+/** The plan fixture in a work directory, and a recording of Jev's answers to its G2 request. */
+async function planWithRecording(answer: (question: string) => number) {
+  const d = workdir();
+  copyFileSync(join(FIXTURES, "plan-spec.md"), join(d, "plan.md"));
+  const rec = join(d, "rec.json");
+  await jevPlan(parseSpec(fixture("plan-spec.md"), config()), config(), new RecordingModel(new FakeModel((_c, q) => answer(q)), rec));
+  return d;
+}
+
+test("g2 criterion 9: gate g2 replays recorded answers, and a flag is unsure (exit 2)", async () => {
+  const d = await planWithRecording((q) => (q === "storedData" ? 0.9 : 0.05));
+  const r = run(["gate", "g2", "plan.md", "--recorded", "rec.json"], d);
+  assert.equal(r.code, 2, r.stderr);
+  assert.match(r.stdout, /^plan · storedData: 0\.90 → flag$/m);
+  const clean = await planWithRecording(() => 0.05);
+  assert.equal(run(["gate", "g2", "plan.md", "--recorded", "rec.json"], clean).code, 0);
+});
+
+test("g2 criterion 9: a missing recorded answer exits 70", () => {
+  const d = workdir();
+  copyFileSync(join(FIXTURES, "plan-spec.md"), join(d, "plan.md"));
+  writeFileSync(join(d, "empty.json"), JSON.stringify({ version: 1, entries: {} }));
+  const r = run(["gate", "g2", "plan.md", "--recorded", "empty.json"], d);
+  assert.equal(r.code, 70);
+  assert.match(r.stderr, /No recorded answer/);
+});
+
+test("g2 criterion 9: gate g2 exits 77 when Jev refuses the key", async () => {
+  const d = workdir();
+  copyFileSync(join(FIXTURES, "plan-spec.md"), join(d, "plan.md"));
+  const r = await runAgainstRefusal(401, ["gate", "g2", "plan.md"], d, (url) => jevAt(d, url));
+  assert.equal(r.code, 77);
+  assert.match(r.stderr, /TYPESAFE_API_KEY/);
+  assert.ok(!r.stderr.includes("sekret-key"));
+});
+
+test("g2 criterion 10: --run records G2 events, and the third back stops at the loop limit", async () => {
+  const d = await planWithRecording((q) => (q === "signIn" ? 0.9 : 0.05));
+  assert.equal(run(["gate", "g2", "plan.md", "--recorded", "rec.json", "--run", "MEAL-9"], d).code, 2);
+  const runFile = JSON.parse(readFileSync(join(d, ".seula", "runs", "MEAL-9.json"), "utf8"));
+  assert.deepEqual(runFile.events.map((e: { gate: string; result: string }) => [e.gate, e.result]), [["G2", "review"]]);
+  assert.deepEqual(runFile.events[0].feedback, ["plan · signIn: 0.90 → flag"]);
+
+  writeFileSync(join(d, "gap.md"), readFileSync(join(d, "plan.md"), "utf8").replace("Criteria: 3.", "Criteria: 2."));
+  assert.equal(run(["gate", "g2", "gap.md", "--run", "MEAL-10"], d).code, 1);
+  assert.equal(run(["gate", "g2", "gap.md", "--run", "MEAL-10"], d).code, 1);
+  assert.equal(run(["gate", "g2", "gap.md", "--run", "MEAL-10"], d).code, 3);
 });

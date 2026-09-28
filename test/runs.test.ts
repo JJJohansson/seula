@@ -132,3 +132,9 @@ test("run-files criterion 10: update appends the Claude run and adds its cost to
   assert.deepEqual(run.cost.claudeRuns?.map((r) => r.turns), [19, 4]);
   assert.doesNotMatch(JSON.stringify(readRun(d, "WEB-7")), /Ignore your rules/);
 });
+
+test("run-files criterion 3: after G2 passes, a person reviews the plan", () => {
+  const run = appendEvent(dir(), "MEAL-4", { gate: "G2", result: "pass" }, { title: "Page description" });
+  assert.equal(run.step, "plan review");
+  assert.equal(run.waitingOn, "human");
+});
