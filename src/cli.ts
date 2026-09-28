@@ -17,7 +17,7 @@ import { renderSpecWriterPrompt } from "./prompts.ts";
 import { statusTable } from "./status.ts";
 import { appendComments } from "./trackers/comments.ts";
 import { makeTracker } from "./trackers/index.ts";
-import { TicketError, ticketMarkdown } from "./trackers/types.ts";
+import { TicketError, type Tracker, ticketMarkdown } from "./trackers/types.ts";
 
 const HELP = `seula: spec-driven quality gates for AI coding agents
 
@@ -36,6 +36,7 @@ Usage:
   seula tracker comment --key <key> --text-file <file>    Comment on a ticket
   seula tracker state --key <key> [--fail-on <state>]     The ticket's state; exits 1 when it is in <state>
   seula tracker move --key <key> --state <needsInput|specReview|planning>
+                                 (state and move: --branch <seula branch> in place of --key)
   seula prompt spec-writer --run <id> --ticket <file>     The spec-writer prompt for a run
                                  (--previous-spec <file>: an earlier run's draft to update)
   seula config                   The effective configuration, as JSON
@@ -85,6 +86,7 @@ interface Options {
   event?: string;
   out?: string;
   key?: string;
+  branch?: string;
   state?: string;
   "fail-on"?: string;
   "text-file"?: string;
@@ -250,6 +252,13 @@ async function main(argv: string[]): Promise<number> {
   }
 }
 
+/** The ticket key from --key, or from a seula branch name with --branch (trackers criterion 16). */
+function ticketKey(opts: Options, tracker: Tracker, usage: string): string {
+  if (opts.key !== undefined && opts.branch !== undefined) throw new UsageError("Give --key or --branch, not both.");
+  if (opts.branch !== undefined) return tracker.keyFromBranch(opts.branch);
+  return need(opts.key, usage);
+}
+
 async function trackerCommand(
   sub: string | undefined,
   opts: Options,
@@ -290,7 +299,7 @@ async function trackerCommand(
       return 0;
     }
     case "state": {
-      const key = need(opts.key, "tracker state --key <key> [--fail-on <needsInput|specReview|planning>]");
+      const key = ticketKey(opts, tracker, "tracker state --key <key> [--fail-on <needsInput|specReview|planning>]");
       const failOn = opts["fail-on"];
       if (failOn !== undefined && !isTrackerState(failOn)) throw new UsageError("--fail-on must be needsInput, specReview or planning.");
       const { status, state } = await tracker.state(key);
@@ -304,7 +313,7 @@ async function trackerCommand(
       return 0;
     }
     case "move": {
-      const key = need(opts.key, "tracker move --key <key> --state <needsInput|specReview|planning>");
+      const key = ticketKey(opts, tracker, "tracker move --key <key> --state <needsInput|specReview|planning>");
       const state = opts.state;
       if (!isTrackerState(state)) throw new UsageError("--state must be needsInput, specReview or planning.");
       // planning has no default: without the setting, the move is skipped (trackers criterion 15).
@@ -380,6 +389,7 @@ function parse(argv: string[]) {
       out: { type: "string" },
       key: { type: "string" },
       state: { type: "string" },
+      branch: { type: "string" },
       "fail-on": { type: "string" },
       "text-file": { type: "string" },
       append: { type: "string" },

@@ -1,0 +1,126 @@
+name: seula · board sync (reusable)
+
+# specs/board-sync.md: keeps a ticket in step with its spec pull request. "ticket state" fails
+# while the ticket needs input, so a repo can block the merge with branch protection. "move on
+# merge" moves the ticket to Planning when the spec pull request is merged.
+on:
+  workflow_call:
+    inputs:
+      tracker:
+        description: "jira or github"
+        type: string
+        required: true
+      seula-ref:
+        description: "The seula version (tag, branch or commit) to run"
+        type: string
+        default: main
+    secrets:
+      JIRA_BASE_URL:
+        required: false
+      JIRA_EMAIL:
+        required: false
+      JIRA_API_TOKEN:
+        required: false
+
+# No permissions block: the caller grants them (criterion 8). GitHub Issues needs issues: write,
+# and a called workflow can only narrow what the caller gives.
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ticket-state:
+    name: ticket state
+    # Skipped for other branches and for forks; a skipped required check counts as passed.
+    if: >-
+      startsWith(github.event.pull_request.head.ref, 'seula/') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    env:
+      SEULA: node .seula-tool/src/cli.ts
+      SEULA_TRACKER: ${{ inputs.tracker }}
+    steps:
+      # criterion 7: the config from the base branch, never from the pull request.
+      - name: Check out the config
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: seula.config.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Check out seula
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          repository: JJJohansson/seula
+          ref: ${{ inputs.seula-ref }}
+          path: .seula-tool
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+      - name: Check the ticket state (criterion 4)
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GITHUB_TOKEN: ${{ inputs.tracker == 'github' && github.token || '' }}
+        run: |
+          code=0
+          $SEULA tracker state --tracker "$SEULA_TRACKER" --branch "$HEAD_REF" --fail-on needsInput > state.json || code=$?
+          cat state.json
+          key="$(jq -r '.key // empty' state.json 2> /dev/null || echo "")"
+          case "$code" in
+            0) echo "seula · ticket state: $key doesn't need input." >> "$GITHUB_STEP_SUMMARY" ;;
+            1)
+              msg="$key needs input. Answer the questions on the ticket first, then re-run this check."
+              echo "::error::$msg"
+              echo "seula · ticket state: $msg" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *) echo "seula · ticket state: seula exited $code. See the step log." >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+          exit "$code"
+
+  move-on-merge:
+    name: move on merge
+    if: >-
+      startsWith(github.event.pull_request.head.ref, 'seula/') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      SEULA: node .seula-tool/src/cli.ts
+      SEULA_TRACKER: ${{ inputs.tracker }}
+    steps:
+      - name: Check out the config
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: seula.config.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Check out seula
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          repository: JJJohansson/seula
+          ref: ${{ inputs.seula-ref }}
+          path: .seula-tool
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+      # criteria 5-6: whatever state the ticket is in. Without tracker.states.planning, seula
+      # moves nothing and says so; the summary shows its line either way.
+      - name: Move the ticket to Planning (criterion 5)
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          GITHUB_TOKEN: ${{ inputs.tracker == 'github' && github.token || '' }}
+        run: |
+          echo -n "seula · move on merge: " >> "$GITHUB_STEP_SUMMARY"
+          $SEULA tracker move --tracker "$SEULA_TRACKER" --branch "$HEAD_REF" --state planning | tee -a "$GITHUB_STEP_SUMMARY"

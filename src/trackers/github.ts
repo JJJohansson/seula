@@ -1,4 +1,4 @@
-/** GitHub Issues adapter (specs/trackers.md criteria 4, 5, 6, 7, 8, 10, 14). */
+/** GitHub Issues adapter (specs/trackers.md criteria 4, 5, 6, 7, 8, 10, 14, 16). */
 import type { TrackerState, TrackerStates } from "../config.ts";
 import { type CommentPage, type Ticket, TicketError, type TicketState, type Tracker, failIfNotOk, httpsOrEmpty, matchState, stateName, ticketComment } from "./types.ts";
 
@@ -106,6 +106,13 @@ export class GitHubTracker implements Tracker {
     if (create.status !== 422) await failIfNotOk(create, `GitHub create label "${target}"`, CREDENTIAL);
     const add = await this.api(`/issues/${key}/labels`, { method: "POST", body: JSON.stringify({ labels: [target] }) });
     await failIfNotOk(add, `GitHub add label "${target}" to #${key}`, CREDENTIAL);
+  }
+
+  /** `seula/gh-42` and `seula/gh-42-<spec name>` give 42: the run id in lowercase, then the end or a dash. */
+  keyFromBranch(branch: string): string {
+    const m = /^seula\/gh-([1-9][0-9]*)(?:-|$)/i.exec(branch);
+    if (!m?.[1]) throw new TicketError(`No issue number at the start of the branch name ${JSON.stringify(branch)}.`);
+    return m[1];
   }
 
   private checkKey(key: string): void {

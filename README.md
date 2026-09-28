@@ -35,6 +35,7 @@ The full gate definitions are in [`docs/quality-gates.md`](docs/quality-gates.md
 | — | Claude Code plugin: `seula-gates` skill, `seula-reviewer` agent, spec-writer prompt | ✅ |
 | — | Tracker adapters: Jira and GitHub Issues (`seula tracker`) | ✅ |
 | — | Reusable GitHub workflows: ticket → spec pull request, spec format check | ✅ (first real run pending) |
+| — | Board sync: a check that blocks merging a spec pull request while its ticket needs input; a merge moves the ticket to Planning | 🚧 workflow built, setup docs pending |
 | — | `seula init`: adopt seula in any repo | ✅ |
 | — | Design-first option (`design.required`) | ✅ |
 | G2–G5 | Plan coverage, criterion citations, review, smoke check | Planned |
@@ -50,7 +51,7 @@ From the repo's root (Node 22.18 or later):
 npx github:JJJohansson/seula init --tracker github    # or --tracker jira; add --design-first to require designs
 ```
 
-This writes `seula.config.json`, two short caller workflows that use seula's reusable workflows
+This writes `seula.config.json`, three short caller workflows that use seula's reusable workflows
 (pinned to a seula version), and a spec template if the repo has none. It never overwrites your
 files. Then add the secrets it lists and follow the setup guide for your tracker:
 

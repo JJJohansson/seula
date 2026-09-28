@@ -1,0 +1,23 @@
+# seula: keep a Jira ticket in step with its spec pull request. A check fails while the ticket
+# needs input; a merge moves the ticket to Planning (set tracker.states.planning to turn it on).
+# Setup: https://github.com/JJJohansson/seula/blob/main/docs/setup-jira.md
+name: seula · board sync
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  seula:
+    uses: JJJohansson/seula/.github/workflows/board-sync.yml@{{REF}}
+    with:
+      tracker: jira
+      seula-ref: {{REF}}
+    # Only the tracker's secrets, never `inherit`.
+    secrets:
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}

@@ -1,6 +1,6 @@
 # FEATURE: Issue tracker adapters (Jira, GitHub Issues)
 
-> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. Credential errors: the change to criterion 9 approved and built 27 Sep 2026. **Board sync: the changes to criteria 1 and 6, and criteria 14–15, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)).
+> **Status:** Approved (26 Sep 2026). Criteria 10–13 approved and built 27 Sep 2026; the workflow uses them from ticket-to-spec criterion 18. Credential errors: the change to criterion 9 approved and built 27 Sep 2026. **Board sync: the changes to criteria 1 and 6, and criteria 14–15, approved and built 28 Sep 2026; criterion 16 (`--branch`) approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)).
 
 ## OVERVIEW
 seula reads tickets from, and reports back to, an issue tracker through a small adapter. Two
@@ -77,6 +77,10 @@ another tracker later touches one file.
     in that state, and its message names the key and the state.
 15. `planning` has no default. When `tracker.states.planning` is not set, `move --state
     planning` changes nothing, says that the setting is not set, and exits 0.
+16. `tracker state` and `tracker move` take `--branch <name>` in place of `--key`. The key comes
+    from the start of a seula branch name, as [`board-sync.md`](board-sync.md) criterion 2
+    says. A name that gives no key exits 64 before any API call. Giving both `--key` and
+    `--branch` exits 64.
 
 ## OUT OF SCOPE
 - Other trackers (Linear, GitLab, Azure Boards); they can be added behind the same interface.

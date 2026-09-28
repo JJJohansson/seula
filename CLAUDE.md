@@ -35,8 +35,8 @@ end in `.ts`.
 - `src/calibrate.ts`: cut-off recommendation from labeled examples.
 - `src/trackers/`: the `Tracker` interface and the Jira and GitHub Issues adapters.
 - `src/prompts.ts`: renders `prompts/spec-writer.md` for a run. `src/init.ts`: `seula init`.
-- `.github/workflows/ticket-to-spec.yml`, `spec-check.yml`: the reusable workflows adopting repos
-  call; `templates/workflows/`: the caller workflows `init` writes. `ci.yml`: seula's own CI.
+- `.github/workflows/ticket-to-spec.yml`, `spec-check.yml`, `board-sync.yml`: the reusable workflows
+  adopting repos call; `templates/workflows/`: the caller workflows `init` writes. `ci.yml`: seula's own CI.
 - `skills/`, `agents/`, `prompts/`, `.claude-plugin/`: the Claude Code plugin.
 
 ## Conventions

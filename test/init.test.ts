@@ -16,7 +16,7 @@ const read = (d: string, f: string) => readFileSync(join(d, f), "utf8");
 // A Windows checkout may have CRLF line endings.
 const lf = (text: string) => text.replaceAll("\r\n", "\n");
 
-test("adoption criteria 1-5: a fresh repo gets a config, two caller workflows and a template", () => {
+test("adoption criteria 1-5, 13: a fresh repo gets a config, three caller workflows and a template", () => {
   const d = repo();
   const r = init({ cwd: d, tracker: "github" });
   assert.deepEqual(
@@ -25,6 +25,7 @@ test("adoption criteria 1-5: a fresh repo gets a config, two caller workflows an
       ["seula.config.json", "written"],
       [".github/workflows/seula-ticket-to-spec.yml", "written"],
       [".github/workflows/seula-spec-check.yml", "written"],
+      [".github/workflows/seula-board-sync.yml", "written"],
       [".seula/spec-template.md", "written"],
     ],
   );
@@ -98,7 +99,7 @@ test("adoption criterion 5: a repo with SPEC_DRIVEN_DEVELOPMENT.md gets no templ
   const r = init({ cwd: d, tracker: "github" });
   assert.ok(!existsSync(join(d, ".seula/spec-template.md")));
   assert.equal(JSON.parse(read(d, "seula.config.json")).template, undefined);
-  assert.equal(r.files.length, 3);
+  assert.equal(r.files.length, 4);
 });
 
 test("adoption criteria 6, 8: existing files are skipped; a second run writes nothing", () => {
@@ -160,3 +161,31 @@ test("adoption: invalid options are rejected", () => {
   assert.throws(() => init({ cwd: d, tracker: "github", specDir: "../outside" }), /Invalid spec directory/);
   assert.throws(() => init({ cwd: d, tracker: "github", seulaRef: "main; rm -rf /" }), /Invalid seula ref/);
 });
+
+/** The `secrets:` names that seula's reusable board-sync workflow declares. */
+function boardSyncSecrets(): string[] {
+  const wf = lf(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "board-sync.yml"), "utf8"));
+  const block = /^ {4}secrets:\n((?: {6}.*\n)+)/m.exec(wf)?.[1] ?? "";
+  return [...block.matchAll(/^ {6}(\w+):$/gm)].map((m) => m[1] as string);
+}
+
+for (const [tracker, expected, permissions] of [
+  ["github", {}, ["contents: read", "issues: write"]],
+  ["jira", { JIRA_BASE_URL: "JIRA_BASE_URL", JIRA_EMAIL: "JIRA_EMAIL", JIRA_API_TOKEN: "JIRA_API_TOKEN" }, ["contents: read"]],
+] as const) {
+  test(`adoption criterion 13: the ${tracker} board sync caller runs on pull requests and passes only the tracker's credentials`, () => {
+    const d = repo();
+    init({ cwd: d, tracker, seulaRef: "main" });
+    const caller = lf(read(d, ".github/workflows/seula-board-sync.yml"));
+    assert.ok(caller.split("\n").length <= 31, "at most 30 lines");
+    assert.match(caller, /^on:\n {2}pull_request:\n {4}types: \[opened, reopened, synchronize, ready_for_review, closed\]$/m);
+    assert.match(caller, /uses: JJJohansson\/seula\/\.github\/workflows\/board-sync\.yml@main/);
+    assert.match(caller, new RegExp(`tracker: ${tracker}`));
+    assert.match(caller, /seula-ref: main/);
+    assert.doesNotMatch(caller, /secrets:\s*inherit/);
+    assert.deepEqual(passedSecrets(caller), expected);
+    for (const name of Object.keys(expected)) assert.ok(boardSyncSecrets().includes(name), `board-sync.yml declares ${name}`);
+    const granted = /^permissions:\n((?: {2}.*\n)+)/m.exec(caller)?.[1]?.trim().split("\n").map((l) => l.trim());
+    assert.deepEqual(granted, permissions);
+  });
+}
