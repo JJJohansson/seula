@@ -1,6 +1,6 @@
 # FEATURE: Reusable spec-to-plan workflow
 
-> **Status:** Approved (28 Sep 2026). Not yet built.
+> **Status:** Approved (28 Sep 2026). Not yet built. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026; `seula approve` (criterion 15) built, the workflow not yet.**
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `spec-to-plan.yml`. When a spec pull request is merged,
@@ -38,14 +38,18 @@ building stay with a person for now.
    the ticket key from the head branch name with `--branch` ([`trackers.md`](trackers.md)
    criterion 16).
 3. The spec is the one file in the spec directory that the merged pull request added or
-   changed. When there is none, or more than one, the run stops with a technical failure and
-   opens no pull request.
+   changed, from the pull request's file list in the GitHub API, leaving out the files in the
+   config's `ignore` list (such as the spec index). When there is none, or more than one, the
+   run stops with a technical failure and opens no pull request.
 4. The workflow sets the spec's status line to `Approved`, with the date and the number of the
-   merged pull request. When `Approved` is not one of the config's statuses, the run stops with
-   a technical failure. The agent never changes the status line.
+   merged pull request, with `seula approve` (criterion 15). When `Approved` is not one of the
+   config's statuses, the run stops with a technical failure. The agent never changes the
+   status line.
 5. Claude writes the plan into the spec's `## PLAN` section with the planner prompt
    (`prompts/planner.md`) and the seula plugin. It runs `seula gate g2` with `--approved` (the
-   spec as merged) until G2 passes, is unsure, or reaches the loop limit.
+   spec as merged) until G2 passes, is unsure, or reaches the loop limit. The workflow copies
+   the spec as merged to `.seula/approved/<spec file name>` before it sets the status. The copy
+   is never committed.
 6. The agent can read the whole working directory and its installed skills, and can edit only
    the spec file. Its only shell command is seula's G2 gate. Otherwise it has the same limits as
    the spec writer: no git, no web pages, no Anthropic key in its shell commands, and no GitHub,
@@ -74,6 +78,11 @@ building stay with a person for now.
 14. Merging a plan pull request starts no workflow of seula's: its branch doesn't start with
     `seula/`. The ticket-to-spec workflow never takes a `seula-plan/` branch as the ticket's
     spec branch.
+15. `seula approve <spec> --pr <number>` changes the spec's status line to
+    `> **Status:** Approved (<date>, merged in #<number>)`, with today's date, and changes
+    nothing else in the file. It exits 64, and changes nothing, when the spec has no status
+    line, when `--pr` is not a positive whole number, or when `Approved` is not one of the
+    config's statuses.
 
 ## OUT OF SCOPE
 - Writing code, and gates G3 to G5.
