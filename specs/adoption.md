@@ -1,9 +1,9 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)).
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, not built** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
 
 ## OVERVIEW
-`npx github:JJJohansson/seula init` sets seula up in any repo: a config file, three short
+`npx github:JJJohansson/seula init` sets seula up in any repo: a config file, four short
 caller workflows that use seula's reusable workflows, and a spec template when the repo has
 none. It never overwrites the repo's own files.
 
@@ -18,6 +18,7 @@ repo decides which of its secrets seula gets.
   `--seula-ref <ref>`, `--force`.
 - Outputs: `seula.config.json`; `.github/workflows/seula-ticket-to-spec.yml`;
   `.github/workflows/seula-spec-check.yml`; `.github/workflows/seula-board-sync.yml`;
+  `.github/workflows/seula-spec-to-plan.yml`;
   `.seula/spec-template.md` when needed; a list of next steps.
 
 ## ACCEPTANCE CRITERIA
@@ -64,6 +65,11 @@ repo decides which of its secrets seula gets.
     [`board-sync.md`](board-sync.md)). It passes only the tracker credentials, each by name:
     for Jira `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN`; for GitHub none, and the
     workflow gets `issues: write` permission for its `GITHUB_TOKEN`.
+14. It writes `.github/workflows/seula-spec-to-plan.yml`: a caller workflow of at most 30 lines
+    that triggers on `pull_request` events of type closed and calls seula's `spec-to-plan.yml`
+    at the `--seula-ref` (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). It
+    passes the same secrets, by the same names, as the ticket-to-spec caller (criterion 3), and
+    never `secrets: inherit`.
 
 ## OUT OF SCOPE
 - Creating GitHub secrets, Jira automation rules or GitHub labels (the setup guides cover them;
