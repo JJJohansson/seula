@@ -177,3 +177,152 @@ test("spec-to-plan criterion 3: a failed file list call fails the step, not as 0
   assert.notEqual(r.status, 0);
   assert.doesNotMatch(r.stdout, /changed 0 specs/);
 });
+
+// Unit 6, criteria 8-14: the result, the secret check, the plan pull request, the reports.
+const RESULT = "Read the result";
+const SECRETS = "Check the agent's output for secrets";
+const PR = "Commit and open the plan pull request";
+const REPORT = "Report on the ticket";
+const FAILURE = "Report a failure on the ticket";
+
+/** Runs a step's script with bash in a fresh directory holding `files`; returns its outputs. */
+function runStep(name: string, env: Record<string, string>, files: Record<string, string> = {}) {
+  const d = mkdtempSync(join(tmpdir(), "seula-plan-"));
+  for (const [f, text] of Object.entries(files)) {
+    mkdirSync(join(d, f, ".."), { recursive: true });
+    writeFileSync(join(d, f), text);
+  }
+  const out = join(d, "github.output");
+  const summary = join(d, "summary.md");
+  writeFileSync(out, "");
+  writeFileSync(summary, "");
+  const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script(name)], {
+    cwd: d,
+    encoding: "utf8",
+    env: { ...process.env, SEULA: `node ${CLI}`, SEULA_TRACKER: "jira", GITHUB_OUTPUT: out, GITHUB_STEP_SUMMARY: summary, ...env },
+  });
+  const lines = readFileSync(out, "utf8").split("\n").filter(Boolean);
+  const outputs = Object.fromEntries(lines.map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
+  return { code: r.status, stdout: r.stdout, stderr: r.stderr, outputs, summary: readFileSync(summary, "utf8") };
+}
+
+test("spec-to-plan criterion 8: the secret check runs before the commit, the pull request and the report", () => {
+  const at = stepIndex(SECRETS);
+  assert.ok(at > stepIndex(G2) && at < stepIndex(PR) && at < stepIndex(REPORT));
+  const s = script(SECRETS);
+  for (const f of ['"$SPEC"', '"$RUN_FILE"', "claude.json"]) assert.ok(s.includes(f), f);
+});
+
+test("spec-to-plan criterion 9: the commit stages only the spec and the run file, on a seula-plan/ branch, with the token only in its git commands", () => {
+  const s = script(PR);
+  const adds = [...s.matchAll(/^\s*git add (.+)$/gm)].map((m) => m[1]);
+  assert.ok(adds.length > 0);
+  for (const add of adds) assert.equal(add, '"$SPEC" "$RUN_FILE"');
+  assert.ok(s.includes(`branch="seula-plan/$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"`));
+  assert.ok(s.includes('git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth"'));
+  assert.doesNotMatch(s, /git config [^\n]*extraheader/);
+  assert.ok(s.includes('gh pr view "$branch"'));
+  assert.ok(s.includes('gh pr create --base "$BASE_BRANCH" --head "$branch"'));
+});
+
+test("spec-to-plan criterion 9: the pull request links the ticket and the spec pull request, and lists G2's results and the cost", () => {
+  const s = script(PR);
+  assert.ok(s.includes("#$PR_NUMBER"));
+  assert.ok(s.includes(".links.ticket"));
+  assert.ok(s.includes('select(.gate == "G2")'));
+  assert.ok(s.includes("Cost: Claude"));
+  assert.ok(s.includes("Needs your judgement"));
+});
+
+test("spec-to-plan criterion 11: the comment starts with seula · , and the workflow never moves the ticket", () => {
+  assert.ok(script(REPORT).includes("seula · "));
+  assert.ok(script(REPORT).includes('$SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY"'));
+  assert.doesNotMatch(WORKFLOW, /tracker move/);
+});
+
+function reportedSteps(): { variable: string; name: string }[] {
+  return [...script(FAILURE).matchAll(/^ {2}"(OUT_[A-Z0-9_]+)\|([^"]+)"$/gm)].map((m) => ({ variable: m[1] ?? "", name: m[2] ?? "" }));
+}
+
+test("spec-to-plan criterion 12: the failure report runs on failure, knows every step that can fail, and posts no agent output", () => {
+  const failure = step(FAILURE);
+  assert.ok(failure.includes("if: failure() || cancelled() || steps.result.outputs.status == 'failed'"));
+  const listed = reportedSteps();
+  const names = stepNames();
+  let last = -1;
+  for (const { variable, name } of listed) {
+    const at = names.findIndex((n) => n.startsWith(name));
+    assert.ok(at > last, `"${name}" is missing or out of order`);
+    last = at;
+    const id = /^ {8}id: (\S+)$/m.exec(step(names[at] ?? ""))?.[1];
+    assert.ok(id && failure.includes(`${variable}: \${{ steps.${id}.outcome }}`), `${name}: ${variable}`);
+  }
+  const withIds = names.filter((n) => /^ {8}id: /m.test(step(n)) && !n.startsWith(FAILURE));
+  for (const n of withIds) assert.ok(listed.some((l) => n.startsWith(l.name)), `"${n}" can fail but isn't listed`);
+  assert.doesNotMatch(script(FAILURE), /claude\.json/);
+});
+
+test("spec-to-plan criterion 13: the Claude cost goes into the run file with its breakdown", () => {
+  assert.ok(script(RESULT).includes('$SEULA update --run "$RUN_ID" --claude-result claude.json'));
+});
+
+test("spec-to-plan criterion 14: ticket-to-spec never takes a seula-plan/ branch as a spec branch", () => {
+  const reuse = /\[\[ "\$existing" =~ (\S+) \]\]/.exec(read("ticket-to-spec.yml"))?.[1] ?? "";
+  assert.ok(reuse, "ticket-to-spec checks the branch it reuses");
+  assert.ok(!new RegExp(reuse).test("seula-plan/meal-4"));
+  assert.ok(new RegExp(reuse).test("seula/meal-4"));
+});
+
+const planRun = (g2: { result: string; feedback?: string[] }[], blocked = false) =>
+  JSON.stringify({ id: "MEAL-4", blocked, events: g2.map((e) => ({ gate: "G2", ...e })), cost: { claudeUsd: 0, jevUsd: 0 }, links: {} });
+const claudeOut = (over: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    is_error: false,
+    subtype: "success",
+    structured_output: { spec_path: "specs/page-description.md", status: "ready", questions: [], summary: "Plan." },
+    ...over,
+  });
+const RESULT_ENV = { RUN_ID: "MEAL-4", RUN_FILE: ".seula/runs/MEAL-4.json", SPEC: "specs/page-description.md", CLAUDE_EXIT: "0", HAS_JEV: "true" };
+const resultOf = (run: string, claude: string, env: Record<string, string> = {}) =>
+  runStep(RESULT, { ...RESULT_ENV, ...env }, {
+    ".seula/runs/MEAL-4.json": run,
+    "claude.json": claude,
+    "specs/page-description.md": "# FEATURE: x\n",
+  }).outputs;
+
+test("spec-to-plan criterion 10: ready, review and draft follow the last G2 result and the agent's questions", { skip: !hasJq && "needs bash and jq" }, () => {
+  const asked = { structured_output: { spec_path: "specs/page-description.md", status: "needs_input", questions: ["Which page?"], summary: "" } };
+  assert.equal(resultOf(planRun([{ result: "back" }, { result: "pass" }]), claudeOut()).status, "ready");
+  assert.equal(resultOf(planRun([{ result: "review", feedback: ["plan · signIn: 0.80 → flag"] }]), claudeOut()).status, "review");
+  assert.equal(resultOf(planRun([{ result: "back" }]), claudeOut()).status, "draft");
+  assert.equal(resultOf(planRun([{ result: "pass" }]), claudeOut(asked)).status, "draft");
+  assert.equal(resultOf(planRun([{ result: "back" }], true), claudeOut()).status, "blocked");
+  assert.equal(resultOf(planRun([{ result: "skipped" }]), claudeOut()).status, "draft", "skipped with a Jev key configured");
+  assert.equal(resultOf(planRun([{ result: "skipped" }]), claudeOut(), { HAS_JEV: "false" }).status, "ready", "skipped, no Jev key");
+});
+
+test("spec-to-plan criteria 10, 12: a Claude error or another spec path is a failure with a fixed reason", { skip: !hasJq && "needs bash and jq" }, () => {
+  const run = planRun([{ result: "pass" }]);
+  const other = resultOf(run, claudeOut({ structured_output: { spec_path: "specs/other.md", status: "ready", questions: [], summary: "" } }));
+  assert.deepEqual([other.status, other.reason], ["failed", "no_spec"]);
+  const capped = resultOf(run, claudeOut({ is_error: true, subtype: "error_max_turns" }), { CLAUDE_EXIT: "1" });
+  assert.deepEqual([capped.status, capped.reason], ["failed", "turn_cap"]);
+});
+
+test("spec-to-plan criterion 8: a planted key fails the check and names it, but never prints its value", { skip: !hasBash && "needs bash" }, () => {
+  const r = runStep(SECRETS, { SPEC: "specs/x.md", RUN_FILE: ".seula/runs/MEAL-4.json", ANTHROPIC_API_KEY: "sk-ant-planted-4242" }, {
+    "specs/x.md": "# FEATURE: x\n\nsk-ant-planted-4242\n",
+    ".seula/runs/MEAL-4.json": "{}",
+  });
+  assert.notEqual(r.code, 0);
+  assert.match(r.stdout, /ANTHROPIC_API_KEY/);
+  assert.ok(!`${r.stdout}${r.stderr}`.includes("sk-ant-planted-4242"));
+});
+
+test("spec-to-plan criterion 12: a refused file list call names SEULA_GH_TOKEN; with no ticket key nothing is posted", { skip: !hasBash && "needs bash" }, () => {
+  const r = runStep(FAILURE, { OUT_FIND: "failure", SEULA_REFUSED: "gh", TICKET_KEY: "" });
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /::error::seula failed to run\. Failed at the step "Find the ticket and the spec"\..*SEULA_GH_TOKEN/);
+  assert.match(r.summary, /SEULA_GH_TOKEN/);
+  assert.match(r.stdout, /::warning::No ticket key/);
+});
