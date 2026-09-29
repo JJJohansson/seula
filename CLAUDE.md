@@ -31,15 +31,19 @@ CRLF conversion in the tests' git repos.
 ## Architecture
 
 - `src/cli.ts`: argument parsing, exit codes, output formatting. No gate logic.
+- `src/config.ts`: `seula.config.json`, its defaults and its types. `src/errors.ts`: the
+  errors that give exit 64 and 77.
 - `src/spec.ts`: markdown spec parser. `src/gates/checkSpec.ts`: G1 format rules.
 - `src/gates/jevSpec.ts` (G1) and `src/gates/jevTicket.ts` (G0): build Jev requests, route answers.
+- `src/gates/checkPlan.ts` and `src/gates/jevPlan.ts`: G2's plan rules and its Jev flags.
 - `src/routing.ts`: pass / back / unsure from a probability and cut-offs.
 - `src/jev/model.ts`: the `DecisionModel` interface, the Jev HTTP client, and record/replay.
   Gates depend only on the interface.
 - `src/runs.ts`, `src/status.ts`: run files and the status table.
 - `src/calibrate.ts`: cut-off recommendation from labeled examples.
 - `src/approve.ts`: `seula approve`, which marks a merged spec Approved for the plan step.
-- `src/trackers/`: the `Tracker` interface and the Jira and GitHub Issues adapters.
+- `src/trackers/`: the `Tracker` interface, the Jira and GitHub Issues adapters, and
+  `comments.ts`, which adds a ticket's comments to the ticket file.
 - `src/prompts.ts`: renders `prompts/spec-writer.md` and `prompts/planner.md` for a run. `src/init.ts`: `seula init`.
 - `.github/workflows/ticket-to-spec.yml`, `spec-check.yml`, `board-sync.yml`,
   `spec-to-plan.yml`: the reusable workflows adopting repos call; `templates/workflows/`: the
@@ -60,4 +64,4 @@ CRLF conversion in the tests' git repos.
 ## Git
 
 - `git add` and `git commit`: allowed without asking.
-- `git push` and `git pull`: ask first, every time.
+- `git push`, `git pull` and `git fetch`: ask first, every time.

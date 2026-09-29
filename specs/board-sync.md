@@ -1,6 +1,6 @@
 # FEATURE: Board sync (the ticket follows the spec pull request)
 
-> **Status:** Approved (28 Sep 2026). Built 28 Sep 2026 in three units: trackers criteria 14–16, the workflow with its callers and `init`, and the docs. Not yet run on GitHub for real: the first run is in mealPlanner after its pin bump. **The change to criterion 2 and the data schema (the key from the branch name) approved 28 Sep 2026:** the MEAL-4 run showed that the branch is named after the run id in lowercase.
+> **Status:** Approved (28 Sep 2026). Built 28 Sep 2026 in three units: trackers criteria 14–16, the workflow with its callers and `init`, and the docs. The "ticket state" check first ran for real on 29 Sep 2026 and failed as it should, on a spec pull request whose ticket needed input; "move on merge" has not run for real yet. **The change to criterion 2 and the data schema (the key from the branch name) approved 28 Sep 2026:** the MEAL-4 run showed that the branch is named after the run id in lowercase.
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `board-sync.yml`, that keeps a ticket's state in step with

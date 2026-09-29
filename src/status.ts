@@ -18,7 +18,7 @@ export function waitingLabel(run: RunFile): string {
   if (run.blocked) return "→ you: loop limit reached";
   const last = run.events.at(-1);
   if (last?.gate === "G0" && last.result === "back") return "→ you: answer the ticket questions";
-  if (last?.gate === "G1" && last.result === "pass") return "→ you: approve spec";
+  if (last?.gate === "G1" && last.result === "pass") return "→ you: review and merge the spec";
   if (last?.gate === "G4" && last.result === "pass") return "→ you: merge";
   return "→ you: review";
 }

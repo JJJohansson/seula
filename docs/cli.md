@@ -100,7 +100,7 @@ every feature:
 Waiting on you: 1
 
 FEATURE  TITLE           STEP         GATES    NEXT
-WEB-42   Export as CSV   spec review  G1 ↺✓    → you: approve spec
+WEB-42   Export as CSV   spec review  G1 ↺✓    → you: review and merge the spec
 WEB-45   Dark mode       spec         G1 ↺     → agent
 ```
 

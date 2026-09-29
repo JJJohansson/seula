@@ -42,6 +42,8 @@ Gates G3 to G5 are not available as commands yet. For those steps, follow the `s
 | 2 | Unsure: the gate cannot decide | Stop. Give the unsure items to the `seula-reviewer` agent if the task lets you. Otherwise report them to the person. Do not change the work only to force a pass. |
 | 3 | Stop: the gate sent the work back too many times | Stop. Tell the person which gate stopped the work and give the last feedback lines. |
 | 64 | The command is wrong | Correct the command and run it again. |
+| 70 | The gate could not run, for example because the Jev API failed. Nothing was decided. | Stop. Report the error message to the person. Do not treat the work as passed. |
+| 77 | A service refused a credential. The message names the credential. | Stop. Tell the person which credential the message names. Do not try to find or change a credential. |
 
 ## How to fix G1 feedback
 

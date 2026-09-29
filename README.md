@@ -49,7 +49,7 @@ guide for your tracker: [Jira](docs/setup-jira.md) or [GitHub Issues](docs/setup
 | | State |
 |---|---|
 | G0 ticket gate, G1 spec gate, ticket → spec pull request | ✅ Running in a real repo |
-| Board sync (merge block, move to Planning) | ✅ Built; first real run pending |
+| Board sync (merge block, move to Planning) | ✅ Built; the check runs in a real repo, the move on merge not yet |
 | G2 plan gate, planner prompt | ✅ Built |
 | Plan workflow (spec → plan pull request) | ✅ Built; first real run pending |
 | G3 build, G4 review, G5 deploy check | Planned |

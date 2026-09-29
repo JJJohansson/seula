@@ -1,13 +1,16 @@
 # Quality gates
 
-The single source of truth for seula's gates. The agent's rules file and skills point here;
-the automated checks are the `seula` commands, run the same way by the agent and by CI.
+The overview of seula's gates. Each gate's exact behavior is in its spec in
+[`../specs/`](../specs/), and this page must agree with the specs. The agent's rules file and
+skills point here; the automated checks are the `seula` commands, run the same way by the agent
+and by CI.
 
 ## Principles
 
 - **Scripts first, models for judgement, people for intent.** Anything a script can decide,
-  a script decides. Jev answers the yes/no judgement questions. A person approves the spec
-  and merges. Nothing else waits on a person unless a check is unsure.
+  a script decides. Jev answers the yes/no judgement questions. A person approves the spec by
+  merging it, and merges the plan and the code. Nothing else waits on a person unless a check
+  is unsure.
 - **The agent that made the work never checks it.** Reviews run as a separate agent with a
   fresh context.
 - **Every gate leaves a record.** Each result is appended to the feature's run file
@@ -20,10 +23,10 @@ the automated checks are the `seula` commands, run the same way by the agent and
 
 | Gate | Between | Passes when | Checked by | On failure | Status |
 |---|---|---|---|---|---|
-| **G0 Input ready** | ticket → spec | The ticket (its description and its comments) is long enough, states what must change, doesn't contradict itself, and contains no text aimed at the agent. A later comment that changes a requirement replaces it | `seula gate g0`: word count, then Jev on the ticket text and comments | Questions posted on the ticket, status *Needs input*; agent-aimed text stops for a person | **Implemented** |
-| **G1 Spec ready** | spec → plan | Format rules pass (below), and Jev judges every acceptance criterion testable, unambiguous, about behavior, and in scope | `seula check-spec`, then Jev per criterion (`seula gate g1`) | Back to the spec writer with the failed questions; unsure → reviewer or person | **Implemented** |
-| **G1 approval** | | A person has read the spec and set its status to *Approved* | You | — | Manual |
-| **G2 Plan ready** | plan → build | Every criterion maps to a task with a test and files; the plan changes nothing else in the approved spec | `seula gate g2`: script (coverage), then Jev flags sign-in, stored data or personal data | Back to the planning agent; flags go to the plan reviewer | Built (`seula gate g2`, `spec-to-plan.yml` and its caller from `init`): [`g2-plan-gate.md`](../specs/g2-plan-gate.md), [`spec-to-plan-workflow.md`](../specs/spec-to-plan-workflow.md) |
+| **G0 Input ready** | ticket → spec | The ticket (its description and its comments) is long enough, states what must change, doesn't contradict itself, and contains no text aimed at the agent. A later comment that changes a requirement replaces it | `seula gate g0`: word count, then Jev on the ticket text and comments | Questions posted on the ticket, status *Needs input*; agent-aimed text stops for a person | **Built** |
+| **G1 Spec ready** | spec → plan | Format rules pass (below), and Jev judges every acceptance criterion testable, unambiguous, about behavior, and in scope | `seula check-spec`, then Jev per criterion (`seula gate g1`) | Back to the spec writer with the failed questions; unsure → reviewer or person | **Built** |
+| **G1 approval** | | A person has read the spec pull request and merged it. Merging is the approval: the plan step then records it in the spec's status line | You | — | Manual |
+| **G2 Plan ready** | plan → build | Every criterion maps to a task with a test and files; the plan changes nothing else in the approved spec | `seula gate g2`: script (coverage), then Jev flags sign-in, stored data or personal data | Back to the planning agent; flags go to the plan reviewer | **Built** (`seula gate g2`, `spec-to-plan.yml` and its caller from `init`): [`g2-plan-gate.md`](../specs/g2-plan-gate.md), [`spec-to-plan-workflow.md`](../specs/spec-to-plan-workflow.md) |
 | **G3 Build green** | build → verify | Lint, typecheck, unit tests, build, accessibility and security scans pass; every criterion is cited by a test; changes stay within the planned files | CI, plus a citation check | Back to build with the CI output | Planned (CI exists in the target repo) |
 | **G4 Verified** | verify → merge | A reviewer in a fresh context confirms the diff does what the criteria say and nothing more; end-to-end test passes | Claude reviewer agent + CI | Back to build | Planned |
 | **G4 merge** | | A person merges | You | — | Manual |
@@ -75,8 +78,8 @@ G0 and the ticket-to-spec workflow read tickets from, and report to, Jira or Git
 through `seula tracker` ([`../specs/trackers.md`](../specs/trackers.md)). The gates themselves
 never talk to a tracker.
 
-Board sync (built 28 Sep 2026: [`../specs/board-sync.md`](../specs/board-sync.md)) is not a
-gate: it asks no model. A check on the spec pull request fails while the ticket is in *Needs
+Board sync (built 28 Sep 2026: [`../specs/board-sync.md`](../specs/board-sync.md); the check
+first ran in a real repo on 29 Sep 2026) is not a gate: it asks no model. A check on the spec pull request fails while the ticket is in *Needs
 input*, so a repo can block the merge with branch protection. A merge moves the ticket to
 *Planning*.
 
@@ -192,8 +195,9 @@ next (spec approval after G1, merge after G4), and `none` when done.
 
 - **Ticket text is untrusted input.** Anyone who can edit a ticket can try to steer the agent.
   The agent gets it only as data, never as instructions, and runs with narrow permissions: it
-  reads only the working directory and its skills, edits only the spec directory, and its only
-  command is G1. It can't run git or fetch web pages. Only the workflow sets these
+  reads only the working directory and its skills, and edits only the spec directory (the
+  planner: only its one spec). The spec writer's only command is G1, and the planner's only
+  command is G2. Neither can run git or fetch web pages. Only the workflow sets these
   permissions: the repo's own Claude Code settings, hooks, `.mcp.json` servers and project
   skills don't load for the agent.
 - **The agent holds no credential it doesn't need.** It never gets the GitHub, Jira or deploy
