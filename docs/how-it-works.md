@@ -4,24 +4,22 @@ seula turns a tracker ticket into an agreed spec, and then into a plan, with qua
 between the steps. Agents do the writing; gates check the work; people approve it. This page
 shows the flow, what runs where, how it is secured, and how a team uses it day to day.
 
-Steps marked 🔜 belong to the plan step
-([`../specs/spec-to-plan-workflow.md`](../specs/spec-to-plan-workflow.md)). Its gate (G2) and
-its prompt are built; its workflow is not built yet.
+The plan step ([`../specs/spec-to-plan-workflow.md`](../specs/spec-to-plan-workflow.md)) is
+built; its first real run is still pending.
 
 ## The flow
 
-Solid boxes run today. Dashed boxes are the plan step. Grey boxes are services outside GitHub.
+Grey boxes are services outside GitHub.
 
 ```mermaid
 flowchart TD
-  classDef planned stroke-dasharray: 5 5
   classDef ext fill:#eee,stroke:#999
 
   subgraph PERSON["Person"]
     W["Write ticket<br/>(ticket template)"]
     ANS["Answer seula's questions"]
     RS["Review spec PR<br/>merge = approval"]
-    RP["Review plan PR"]:::planned
+    RP["Review plan PR"]
   end
 
   subgraph JIRA["Tracker: Jira or GitHub Issues"]
@@ -40,15 +38,15 @@ flowchart TD
     G1B["G1 · the workflow's own check<br/>format + Jev per criterion"]
     SCAN["Secret scan of the agent's output and the spec"]
     BS["board-sync.yml<br/>'ticket state' check · 'move on merge'"]
-    STP["spec-to-plan.yml"]:::planned
-    PA["Planner agent<br/>Claude Code in a sandbox<br/>edits the spec's PLAN only · runs only G2"]:::planned
+    STP["spec-to-plan.yml"]
+    PA["Planner agent<br/>Claude Code in a sandbox<br/>edits the spec's PLAN only · runs only G2"]
     G2["G2 · plan gate<br/>coverage rules + Jev flags"]
   end
 
   subgraph REPO["GitHub: the adopting repo"]
     PR1["Spec PR · seula/meal-4"]
     MAIN["Default branch"]
-    PR2["Plan PR · seula-plan/meal-4"]:::planned
+    PR2["Plan PR · seula-plan/meal-4"]
   end
 
   ANT["Anthropic API<br/>Claude (the model)"]:::ext
@@ -85,9 +83,9 @@ flowchart TD
 | Part | Where it runs | What it is |
 |---|---|---|
 | Ticket, statuses, automation rule | The tracker (Jira Cloud or GitHub Issues) | Holds the work's state, and starts a run |
-| `ticket-to-spec.yml`, `spec-check.yml`, `board-sync.yml`, 🔜 `spec-to-plan.yml` | GitHub Actions, a fresh Ubuntu VM per run | seula's reusable workflows. The adopting repo calls them from short caller workflows, pinned to a seula version |
+| `ticket-to-spec.yml`, `spec-check.yml`, `board-sync.yml`, `spec-to-plan.yml` | GitHub Actions, a fresh Ubuntu VM per run | seula's reusable workflows. The adopting repo calls them from short caller workflows, pinned to a seula version |
 | G0, G1, G2 | The same runner, as `seula gate` commands | Rules, then questions to Jev. seula's code turns Jev's answers into pass, back or unsure |
-| Spec writer, 🔜 planner | The same runner: Claude Code, in a sandbox | The only agents. Their loop runs on the runner; the model runs at Anthropic |
+| Spec writer, planner | The same runner: Claude Code, in a sandbox | The only agents. Their loop runs on the runner; the model runs at Anthropic |
 | Jev | Typesafe's API | A judge, not an agent. It answers fixed yes/no questions with a probability, and has no tools |
 | Your machine | Nothing is required | The Claude Code plugin is optional, for running the gates yourself |
 
@@ -180,8 +178,8 @@ The full steps are in the setup guide for your tracker: [Jira](setup-jira.md) or
 | 6b | *If the spec is ready* | The pull request is ready for review, and the ticket goes to **Spec review**. Criteria that Jev was unsure about are under "Needs your judgement" | — |
 | 7 | **Review the spec**, and edit it if needed | `spec-check` runs the format rules on your edits | Checks on the pull request |
 | 8 | **Merge it.** Merging approves the spec | Board sync moves the ticket to **Planning** | The ticket in Planning |
-| 9 🔜 | — | `spec-to-plan` sets the spec to *Approved*. The **planner** reads the code and writes `## PLAN`: a task, a test and files for every criterion. **G2** checks the coverage, and Jev flags sign-in, stored data or personal data | A plan pull request on `seula-plan/<ticket>`, and a comment on the ticket |
-| 10 🔜 | **Review and merge the plan** | — | — |
+| 9 | — | `spec-to-plan` sets the spec to *Approved*. The **planner** reads the code and writes `## PLAN`: a task, a test and files for every criterion. **G2** checks the coverage, and Jev flags sign-in, stored data or personal data | A plan pull request on `seula-plan/<ticket>`, and a comment on the ticket |
+| 10 | **Review and merge the plan** | — | — |
 | 11 | Build the feature, open a pull request, review it and merge it | Build, review and deploy gates (G3 to G5) are planned | — |
 
 A run takes 2 to 4 minutes. The spec writer costs about $0.60 to $1.20 of Claude per run;

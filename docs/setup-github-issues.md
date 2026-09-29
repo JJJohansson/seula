@@ -89,6 +89,23 @@ workflow's own `GITHUB_TOKEN`.
 A person who changes the labels by hand doesn't start the check again: re-run it from the pull
 request page. See [troubleshooting](troubleshooting.md#board-sync-steps) for its steps.
 
+## 7. The plan step
+
+`init` also writes `.github/workflows/seula-spec-to-plan.yml`. When a spec pull request is
+merged, the merge approves the spec, and seula:
+
+1. marks the spec *Approved* in its status line;
+2. lets Claude read the code and write the spec's `## PLAN` section: a task, a test and files
+   for every acceptance criterion;
+3. checks the plan with G2, and flags sign-in, stored data or personal data for the reviewer;
+4. opens a plan pull request on a `seula-plan/` branch, and comments on the issue with its
+   link. The issue's labels stay as they are; board sync adds `seula:planning`.
+
+It needs no new secret: it uses the secrets from step 3. Each merged spec costs a second Claude
+run, about as much as the spec run. To turn it off, delete
+`.github/workflows/seula-spec-to-plan.yml`. See [troubleshooting](troubleshooting.md#plan-steps)
+for its steps.
+
 ## Options
 
 - **Design first:** `init --design-first` (or `"design": { "required": true }` in the config).

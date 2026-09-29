@@ -1,6 +1,6 @@
 # FEATURE: Adopting seula in a repo (`seula init`)
 
-> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, built 29 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The required `--seula-ref` (the inputs, criteria 3 and 15) approved and built 28 Sep 2026:** `init` wrote `@v<version>`, a tag that doesn't exist.
+> **Status:** Approved (26 Sep 2026). Credential errors: criteria 11–12 approved and built 27 Sep 2026. **Board sync: the changes to the outputs and to criterion 12, and criterion 13, approved and built 28 Sep 2026** (see [`board-sync.md`](board-sync.md)). **Plan step: the outputs and criterion 14 approved 28 Sep 2026, built 29 Sep 2026. The change to criterion 12 (the plan steps in troubleshooting) approved 29 Sep 2026.** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The required `--seula-ref` (the inputs, criteria 3 and 15) approved and built 28 Sep 2026:** `init` wrote `@v<version>`, a tag that doesn't exist.
 
 ## OVERVIEW
 `npx github:JJJohansson/seula init` sets seula up in any repo: a config file, four short
@@ -54,11 +54,11 @@ repo decides which of its secrets seula gets.
 11. `docs/setup-jira.md` says that when moving a ticket to the trigger status starts no
     workflow run, the Jira automation's audit log shows why, for example GitHub refusing an
     expired dispatch token. seula can't report this, because no run starts.
-12. `docs/troubleshooting.md` has one entry for each step of `ticket-to-spec.yml` and of
-    `board-sync.yml`, under the step's name as Actions shows it. Each entry says what the step
-    does, what its failure looks like in Actions and on the ticket, and what to check. The page
-    also covers a move that starts no run (criterion 11) and Anthropic credit that has run out.
-    A test fails when a step of either workflow has no entry.
+12. `docs/troubleshooting.md` has one entry for each step of `ticket-to-spec.yml`, of
+    `board-sync.yml` and of `spec-to-plan.yml`, under the step's name as Actions shows it. Each
+    entry says what the step does, what its failure looks like in Actions and on the ticket, and
+    what to check. The page also covers a move that starts no run (criterion 11) and Anthropic
+    credit that has run out. A test fails when a step of any of these workflows has no entry.
 13. It writes `.github/workflows/seula-board-sync.yml`: a caller workflow of at most 30 lines
     that triggers on `pull_request` events (opened, reopened, synchronize, ready_for_review and
     closed) and calls seula's `board-sync.yml` at the `--seula-ref` (see
