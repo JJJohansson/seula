@@ -2,14 +2,16 @@
 
 When a run of `ticket-to-spec.yml` goes wrong, seula names the step that failed. This page has
 one entry for each step, under the step's name as GitHub Actions shows it. Find the step, then
-follow its entry. Board sync (`board-sync.yml`) has its own entries at the end: see
-[Board sync steps](#board-sync-steps).
+follow its entry. Board sync (`board-sync.yml`) and the plan step (`spec-to-plan.yml`) have
+their own entries at the end: see [Board sync steps](#board-sync-steps) and
+[Plan steps](#plan-steps).
 
 For setting seula up, see [Jira](setup-jira.md) or [GitHub Issues](setup-github-issues.md).
 
 ## Where to look
 
-These places are for ticket-to-spec. Board sync never comments on the ticket.
+These places are for ticket-to-spec, and for the plan step, which reports in the same way. Board
+sync never comments on the ticket.
 
 1. **The ticket.** A technical failure posts one comment that starts with "seula failed to
    run". It names the step that failed, or why Claude stopped, and links the run. The ticket
@@ -274,3 +276,156 @@ summary shows the result.
 
 **What to check:** the status or label name in `tracker.states.planning`, and in Jira that every
 status can move to Planning.
+
+## Plan steps
+
+`spec-to-plan.yml` runs when a pull request is closed. Its job runs only when a spec pull request
+from a `seula/` branch in the same repo was merged; for every other pull request it is skipped,
+and that is not an error. It marks the spec *Approved*, lets Claude write the plan into the
+spec's `## PLAN` section, and opens a plan pull request on a `seula-plan/` branch. A technical
+failure posts "seula failed to run" on the ticket, as ticket-to-spec does. The ticket's state
+never changes.
+
+### Check the inputs
+
+**What it does:** checks the caller workflow's inputs: `tracker`, `model` and `base-branch`.
+
+**When it fails:** an error on the run names the input. The ticket gets no comment, because its
+key isn't known yet.
+
+**What to check:** the `with:` block of the caller workflow.
+
+### Check out the repo
+
+**What it does:** checks out the repository at `base-branch`, after the merge, with
+`SEULA_GH_TOKEN`.
+
+**When it fails:** the error on the run says that the step's only credential is
+`SEULA_GH_TOKEN`. The ticket gets no comment.
+
+**What to check:** that the `SEULA_GH_TOKEN` secret exists, isn't expired, and has Contents
+access to the repository.
+
+### Check out seula
+
+**What it does:** checks out seula at the `seula-ref` of the caller workflow.
+
+**When it fails:** the ticket gets no comment.
+
+**What to check:** that `seula-ref` exists in the seula repository, and that the repository is
+reachable: public, or shared in its Actions settings.
+
+### Find the ticket and the spec (criteria 2-3)
+
+**What it does:** takes the ticket key from the branch name, and finds the one spec that the
+merged pull request added or changed. Files in the config's `ignore` list, such as the spec
+index, don't count.
+
+**When it fails:**
+- "The merged pull request changed 0 specs" or "changed 2 specs": the plan step needs exactly
+  one. A pull request that changes no spec, or several, gets no plan.
+- GitHub refused `SEULA_GH_TOKEN` when the step read the pull request's files: the failure
+  report names the secret.
+
+**What to check:** that one spec pull request changes one spec; the config's `specDir` and
+`ignore`; the `SEULA_GH_TOKEN` secret.
+
+### Keep the approved copy, then approve the spec (criteria 4-5)
+
+**What it does:** keeps a copy of the spec as merged in `.seula/approved/`, for G2 to compare
+with, then marks the spec *Approved* with `seula approve`.
+
+**When it fails:** exit 64. The spec has no status line, or `Approved` is not one of the
+config's `statuses`.
+
+**What to check:** the spec's `> **Status:** …` line, and `statuses` in the config.
+
+### Install Claude Code
+
+**What it does:** installs the agent's sandbox (bubblewrap) and Claude Code at a pinned version.
+
+**When it fails:** an error on the run, and a "seula failed to run" comment that names the step.
+
+**What to check:** the step's log. A failed package download usually passes on a re-run.
+
+### Write the plan · Claude with G2 in the loop (criteria 5-6)
+
+**What it does:** Claude reads the code, writes the spec's `## PLAN` section, and runs G2 on it
+until it passes, is unsure, or reaches the loop limit. It can edit only this spec and run only
+G2.
+
+**When it fails:** the failure comment gives the reason: Claude reached its turn limit, Anthropic
+refused the key, Claude stopped with an API error, or the agent returned another spec than the
+approved one.
+
+**What to check:** for a refused key, `SEULA_ANTHROPIC_API_KEY`; for credit, see
+[Anthropic credit has run out](#anthropic-credit-has-run-out); for a turn limit, whether the spec
+is very large.
+
+### G2 · the workflow's own check (criterion 7)
+
+**What it does:** runs G2 again with the Jev key, so the flag questions are asked, and records
+the result in the run file.
+
+**When it fails:** a refused Jev key is a warning, not a failure. The plan pull request then
+stays a draft, because the plan wasn't checked.
+
+**What to check:** the `SEULA_TYPESAFE_API_KEY` secret.
+
+### Read the result (criteria 10, 13)
+
+**What it does:** stores the Claude cost in the run file, and decides the plan pull request's
+state from the last G2 result: ready, review (flags), draft, or blocked.
+
+**When it fails:** rarely; the log has the details.
+
+**What to check:** that the run file in `.seula/runs/` is valid JSON.
+
+### Check the agent's output for secrets (criterion 8)
+
+**What it does:** looks for the value of every secret in the spec, the run file and the agent's
+output, before anything is committed or posted.
+
+**When it fails:** an error names the secret whose value appears, never the value. Nothing is
+committed or posted.
+
+**What to check:** replace the named secret, because its value may have leaked into the run's
+files. Then look at the spec for text that shouldn't be there.
+
+### Commit and open the plan pull request (criterion 9)
+
+**What it does:** commits the spec and the run file to `seula-plan/<ticket>`, and opens the plan
+pull request, or updates the ticket's open one.
+
+**When it fails:** the failure comment names the step.
+
+**What to check:** that `SEULA_GH_TOKEN` has Contents and Pull requests write access, and that
+no branch rule blocks `seula-plan/` branches.
+
+### Report on the ticket (criterion 11)
+
+**What it does:** comments on the ticket with the plan pull request's link, and the flags or
+open questions. It doesn't move the ticket.
+
+**When it fails:** a warning; the plan pull request is still there.
+
+**What to check:** the tracker credentials (the Jira secrets, or `SEULA_GH_TOKEN` for GitHub
+Issues).
+
+### Report a failure on the ticket (criterion 12)
+
+**What it does:** after a technical failure, writes the reason on the run and in the job
+summary, and posts "seula failed to run" on the ticket.
+
+**When it fails:** when the comment can't be posted, it warns. The reason is still on the run.
+
+**What to check:** the error at the top of the run.
+
+### Summary
+
+**What it does:** writes `seula status` into the job summary.
+
+**When it fails:** it fails on purpose when the run failed, or when the plan is blocked by G2's
+loop limit, so the run shows red.
+
+**What to check:** the steps before it, and the draft plan pull request for a blocked plan.

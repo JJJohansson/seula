@@ -22,8 +22,8 @@ The agent that writes something never checks it.
   checks every acceptance criterion, and unclear tickets get questions instead of guesses.
 - **A board that follows the work.** A check blocks merging a spec while its ticket needs input,
   and merging the spec moves the ticket to *Planning*.
-- **🔜 A plan pull request.** After the spec is merged, an agent maps every criterion to a task, a
-  test and files, and G2 checks the coverage. The gate is built; its workflow is in progress.
+- **A plan pull request.** Merging the spec approves it. An agent then maps every criterion to a
+  task, a test and files, G2 checks the coverage, and a person reviews the plan.
 - **Your own tools.** seula runs in GitHub Actions and in Claude Code, and keeps no state outside
   your repo and your tracker.
 

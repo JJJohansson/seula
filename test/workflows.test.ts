@@ -693,6 +693,29 @@ test("adoption criterion 12: the board sync section has no entry for a step that
   for (const { heading } of entries) assert.ok(boardSyncStepNames().includes(heading), `"${heading}" is not a step of board-sync.yml`);
 });
 
+const SPEC_TO_PLAN = readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "spec-to-plan.yml"), "utf8").replace(/\r\n/g, "\n");
+const specToPlanStepNames = (): string[] => [...SPEC_TO_PLAN.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1] ?? "");
+
+test("adoption criterion 12: every step of spec-to-plan.yml has an entry under Plan steps, under its Actions name", () => {
+  const headings = troubleshootingEntries("Plan steps").map((e) => e.heading);
+  assert.ok(specToPlanStepNames().length >= 10, "spec-to-plan.yml has named steps");
+  for (const name of specToPlanStepNames()) assert.ok(headings.includes(name), `no plan entry for the step "${name}"`);
+});
+
+test("adoption criterion 12: the plan section has no entry for a step that no longer exists", () => {
+  const entries = troubleshootingEntries("Plan steps");
+  assert.ok(entries.length > 0, "the section has entries");
+  for (const { heading } of entries) assert.ok(specToPlanStepNames().includes(heading), `"${heading}" is not a step of spec-to-plan.yml`);
+});
+
+test("spec-to-plan: both setup guides name the plan step's caller and say how to turn it off", () => {
+  for (const guide of ["setup-jira.md", "setup-github-issues.md"]) {
+    const text = readDoc(guide);
+    assert.match(text, /seula-spec-to-plan\.yml/, `${guide}: the caller`);
+    assert.match(text, /turn (it|the plan step) off/i, `${guide}: how to turn it off`);
+  }
+});
+
 test("board-sync criterion 10: both setup guides say how to turn on Planning and require the ticket state check", () => {
   for (const guide of ["setup-jira.md", "setup-github-issues.md"]) {
     const text = readDoc(guide);
