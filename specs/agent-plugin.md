@@ -1,6 +1,6 @@
 # FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer and planner prompts)
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The change to the ticket's part of a spec (the changes to criteria 13–14, criteria 16–17) drafted 29 Sep 2026, not approved** (see [`g1-spec-gate.md`](g1-spec-gate.md) criteria 18–20).
 
 ## OVERVIEW
 seula installs as a Claude Code plugin with four parts: a skill that tells an agent which gate
@@ -53,15 +53,23 @@ it.
 13. The planner prompt tells the agent to read the code that the plan changes, then to write
     only the spec's `## PLAN` section, in the task format of
     [`g2-plan-gate.md`](g2-plan-gate.md): numbered tasks, each with `Criteria:`, `Test:` and
-    `Files:`, and every acceptance criterion covered. It forbids changing anything else in the
-    spec, writing code, and commits and pushes.
-14. The planner prompt tells the agent to run `seula gate g2` on the spec with `--approved` and
-    `--run`, and to act on the exit code as the skill says. When the spec leaves a question
+    `Files:`, and every changed criterion covered ([`g2-plan-gate.md`](g2-plan-gate.md)
+    criterion 3). It tells the agent to plan only the change when the spec was planned before.
+    It forbids changing anything else in the spec, writing code, and commits and pushes.
+14. The planner prompt tells the agent to run `seula gate g2` on the spec with `--approved`,
+    `--run`, and `--base` when it is given (criterion 16), and to act on the exit code as the
+    skill says. When the spec leaves a question
     that the plan needs, the agent asks and does not guess. It asks for `spec_path`, `status`
     (`ready`, `needs_input` or `blocked`), `questions` and `summary`, as the spec writer does.
 15. The skill tells an agent to run G2 after it writes a plan, gives one concrete fix for each
     G2 rule (`task`, `coverage`, `path`, `approved`), and says that a flag is for the person who
     reviews the plan. It forbids changing a plan only to avoid a flag.
+16. `seula prompt spec-writer` and `seula prompt planner` accept `--base <dir>`
+    ([`g1-spec-gate.md`](g1-spec-gate.md), DATA SCHEMA). With it, the rendered prompt tells the
+    agent to run its gate with `--base <dir>`. Without it, the prompt has no `--base`.
+17. The spec-writer prompt tells the agent to change only the text that the ticket needs when
+    it updates a spec that already exists. The agent leaves other text as it is, also when G1
+    warns about that text ([`g1-spec-gate.md`](g1-spec-gate.md) criterion 20).
 
 ## OUT OF SCOPE
 - Hooks that force the agent to run a gate.

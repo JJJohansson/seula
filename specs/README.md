@@ -39,11 +39,21 @@ confirming by a person.
   network) and its threat model. Criteria 1–2 met; the rest after 2026-09-28.
 - [`board-sync.md`](board-sync.md) (approved 28 Sep 2026): a check that blocks merging a spec
   pull request while its ticket needs input, and a move to Planning when it is merged. Built;
-  first real run pending.
+  the check ran for real on 29 Sep 2026, the move on merge not yet.
 - [`g2-plan-gate.md`](g2-plan-gate.md) and [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)
   (approved 28 Sep 2026): when a spec pull request is merged, an agent writes the plan into the
   spec, G2 checks that it covers every criterion, and a person reviews it in a plan pull
-  request. Built, with its caller from `init`; the docs and the first real run not yet.
+  request. Built, with its caller from `init` and the docs; the first real run not yet.
+
+## Drafted, not approved
+- The ticket's part of a spec (29 Sep 2026): when a ticket updates a spec that already exists,
+  G1 and G2 check only the ticket's change (`--base`), the spec writer leaves the rest as it is,
+  and `seula approve` keeps a buildable status. The changes are in
+  [`g1-spec-gate.md`](g1-spec-gate.md) (criteria 18–20),
+  [`g2-plan-gate.md`](g2-plan-gate.md) (criteria 2, 3 and 5),
+  [`ticket-to-spec-workflow.md`](ticket-to-spec-workflow.md) (criteria 12, 15 and 29),
+  [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md) (criteria 4, 5, 7 and 15) and
+  [`agent-plugin.md`](agent-plugin.md) (criteria 13–14 and 16–17).
 
 ## Ideas
 - [`dashboard.md`](dashboard.md): a local web page of every feature in flight.
