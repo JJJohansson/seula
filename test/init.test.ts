@@ -20,7 +20,7 @@ const read = (d: string, f: string) => readFileSync(join(d, f), "utf8");
 // A Windows checkout may have CRLF line endings.
 const lf = (text: string) => text.replaceAll("\r\n", "\n");
 
-test("adoption criteria 1-5, 13: a fresh repo gets a config, three caller workflows and a template", () => {
+test("adoption criteria 1-5, 13-14: a fresh repo gets a config, four caller workflows and a template", () => {
   const d = repo();
   const r = init({ cwd: d, tracker: "github", seulaRef: REF });
   assert.deepEqual(
@@ -30,6 +30,7 @@ test("adoption criteria 1-5, 13: a fresh repo gets a config, three caller workfl
       [".github/workflows/seula-ticket-to-spec.yml", "written"],
       [".github/workflows/seula-spec-check.yml", "written"],
       [".github/workflows/seula-board-sync.yml", "written"],
+      [".github/workflows/seula-spec-to-plan.yml", "written"],
       [".seula/spec-template.md", "written"],
     ],
   );
@@ -103,7 +104,7 @@ test("adoption criterion 5: a repo with SPEC_DRIVEN_DEVELOPMENT.md gets no templ
   const r = init({ cwd: d, tracker: "github", seulaRef: REF });
   assert.ok(!existsSync(join(d, ".seula/spec-template.md")));
   assert.equal(JSON.parse(read(d, "seula.config.json")).template, undefined);
-  assert.equal(r.files.length, 4);
+  assert.equal(r.files.length, 5);
 });
 
 test("adoption criteria 6, 8: existing files are skipped; a second run writes nothing", () => {
@@ -194,7 +195,7 @@ test("adoption criterion 15: a full SHA, a tag or a branch goes into every calle
   for (const ref of [REF, "v0.2.0", "main"]) {
     const d = repo();
     init({ cwd: d, tracker: "jira", seulaRef: ref });
-    for (const caller of ["seula-ticket-to-spec.yml", "seula-spec-check.yml", "seula-board-sync.yml"]) {
+    for (const caller of ["seula-ticket-to-spec.yml", "seula-spec-check.yml", "seula-board-sync.yml", "seula-spec-to-plan.yml"]) {
       const text = lf(read(d, `.github/workflows/${caller}`));
       assert.ok(text.includes(`.yml@${ref}\n`), `${caller} uses @${ref}`);
       assert.ok(text.includes(`seula-ref: ${ref}\n`), `${caller} passes seula-ref ${ref}`);
@@ -238,3 +239,29 @@ test("adoption criterion 15: every init command in the docs passes --seula-ref",
     for (const line of lines) assert.match(line, /--seula-ref /, `${doc}: ${line.trim()}`);
   }
 });
+
+/** The `secrets:` names that seula's reusable spec-to-plan workflow declares. */
+function specToPlanSecrets(): string[] {
+  const wf = lf(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "spec-to-plan.yml"), "utf8"));
+  const block = /^ {4}secrets:\n((?: {6}.*\n)+)/m.exec(wf)?.[1] ?? "";
+  return [...block.matchAll(/^ {6}(\w+):$/gm)].map((m) => m[1] as string);
+}
+
+for (const tracker of ["github", "jira"] as const) {
+  test(`adoption criterion 14: the ${tracker} spec-to-plan caller runs on closed pull requests with the ticket-to-spec secrets`, () => {
+    const d = repo();
+    init({ cwd: d, tracker, seulaRef: REF });
+    const caller = lf(read(d, ".github/workflows/seula-spec-to-plan.yml"));
+    assert.ok(caller.split("\n").length <= 31, "at most 30 lines");
+    assert.match(caller, /^on:\n {2}pull_request:\n {4}types: \[closed\]$/m);
+    assert.ok(caller.includes(`uses: JJJohansson/seula/.github/workflows/spec-to-plan.yml@${REF}\n`));
+    assert.match(caller, new RegExp(`tracker: ${tracker}\\n`));
+    assert.ok(caller.includes(`seula-ref: ${REF}\n`));
+    assert.doesNotMatch(caller, /secrets:\s*inherit/);
+    const passed = passedSecrets(caller);
+    assert.deepEqual(passed, passedSecrets(read(d, ".github/workflows/seula-ticket-to-spec.yml")));
+    for (const name of Object.keys(passed)) assert.ok(specToPlanSecrets().includes(name), `spec-to-plan.yml declares ${name}`);
+    const granted = /^permissions:\n((?: {2}.*\n)+)/m.exec(caller)?.[1]?.trim().split("\n").map((l) => l.trim());
+    assert.deepEqual(granted, ["contents: read"]);
+  });
+}
