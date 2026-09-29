@@ -24,7 +24,7 @@ test("run-files criteria 1, 3-4, 6, 9: a feature moves through the gates and wai
   assert.equal(run.waitingOn, "human");
   assert.equal(run.events.at(-1)?.attempt, 2);
   assert.equal(run.cost.jevUsd, 0.0002);
-  assert.equal(waitingLabel(run), "→ you: approve spec");
+  assert.equal(waitingLabel(run), "→ you: review and merge the spec");
   assert.equal(gateTrail(run), "G0 ✓  G1 ↺✓");
 
   assert.deepEqual(readRun(d, "WEB-42"), run);
@@ -47,7 +47,7 @@ test("run-files criterion 8: status lists newest first and counts what waits on 
   );
   const table = statusTable(runs);
   assert.match(table, /^Waiting on you: 1/);
-  assert.match(table, /WEB-1\s+First\s+spec review\s+G1 ✓\s+→ you: approve spec/);
+  assert.match(table, /WEB-1\s+First\s+spec review\s+G1 ✓\s+→ you: review and merge the spec/);
 });
 
 test("run-files criterion 5: the third back from one gate blocks the feature for a person", () => {
