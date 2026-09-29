@@ -1,0 +1,26 @@
+# seula: when a spec pull request is merged, write the plan into the spec and open a plan
+# pull request. Merging the spec is its approval. Other pull requests skip the job.
+# Setup: https://github.com/JJJohansson/seula/blob/main/docs/setup-jira.md
+name: seula · spec to plan
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  seula:
+    uses: JJJohansson/seula/.github/workflows/spec-to-plan.yml@{{REF}}
+    with:
+      tracker: jira
+      seula-ref: {{REF}}
+    # Only the secrets seula uses, never `inherit`. seula's keys have their own names.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.SEULA_ANTHROPIC_API_KEY }}
+      SEULA_GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+      TYPESAFE_API_KEY: ${{ secrets.SEULA_TYPESAFE_API_KEY }}
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}

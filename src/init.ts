@@ -95,6 +95,7 @@ export function init(opts: InitOptions): InitResult {
     { path: ".github/workflows/seula-ticket-to-spec.yml", content: fill(template(`workflows/ticket-to-spec.${opts.tracker}.yml`)) },
     { path: ".github/workflows/seula-spec-check.yml", content: fill(template("workflows/spec-check.yml")) },
     { path: ".github/workflows/seula-board-sync.yml", content: fill(template(`workflows/board-sync.${opts.tracker}.yml`)) },
+    { path: ".github/workflows/seula-spec-to-plan.yml", content: fill(template(`workflows/spec-to-plan.${opts.tracker}.yml`)) },
   ];
   if (needsTemplate) plan.push({ path: TEMPLATE_PATH, content: template("spec.md") });
 
