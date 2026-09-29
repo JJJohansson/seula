@@ -1,3 +1,7 @@
+/**
+ * `seula.config.json`: its types, the defaults, and loading it. Every setting has a default, so a
+ * repo's config holds only what it changes (docs/cli.md, "Configuration").
+ */
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 

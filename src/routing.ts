@@ -1,3 +1,4 @@
+/** How every Jev answer becomes pass, back or unsure (docs/quality-gates.md, "Routing"). */
 import type { NoulQuestion, Thresholds } from "./config.ts";
 
 /** pass: move on. back: return to the agent that wrote it. review: unsure, a reviewer or human decides. */
@@ -8,6 +9,7 @@ export function goodness(probabilityYes: number, question: Pick<NoulQuestion, "g
   return question.good === "no" ? 1 - probabilityYes : probabilityYes;
 }
 
+/** At or above `passAt` passes, below `blockBelow` goes back, and between is unsure (g1 criterion 12). */
 export function route(good: number, t: Thresholds): Decision {
   if (good >= t.passAt) return "pass";
   if (good < t.blockBelow) return "back";

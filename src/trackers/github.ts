@@ -35,6 +35,7 @@ export class GitHubTracker implements Tracker {
     this.fetchImpl = fetchImpl;
   }
 
+  /** The ticket from an `issues` event. The run id is `GH-<number>`, so it can't clash with a Jira key. */
   ticketFromEvent(event: unknown): Ticket {
     const issue = (event as { issue?: Record<string, unknown> } | null)?.issue;
     if (!issue || typeof issue !== "object") throw new TicketError("The event has no issue: is it an issues event?");
@@ -49,6 +50,7 @@ export class GitHubTracker implements Tracker {
     };
   }
 
+  /** The newest `max` comments, oldest first, and how many the issue has (criterion 10). */
   async comments(key: string, max: number): Promise<CommentPage> {
     this.checkKey(key);
     // The API lists oldest first, so the newest comments are on the last pages. The Link header
@@ -83,6 +85,7 @@ export class GitHubTracker implements Tracker {
     await failIfNotOk(res, `GitHub comment on #${key}`, CREDENTIAL);
   }
 
+  /** An issue's state is a label: the first of its labels that matches a configured state (criterion 14). */
   async state(key: string): Promise<TicketState> {
     this.checkKey(key);
     const res = await this.api(`/issues/${key}`, { method: "GET" });
@@ -93,6 +96,11 @@ export class GitHubTracker implements Tracker {
     return { status, state: matchState(this.states, status) };
   }
 
+  /**
+   * Moves an issue by its labels: removes the other state labels and the trigger label, so the
+   * issue has one state and a person can add the trigger label again to start a new run, then
+   * adds the target label (criterion 6).
+   */
   async move(key: string, state: TrackerState): Promise<void> {
     this.checkKey(key);
     const target = stateName(this.states, state);
@@ -119,6 +127,7 @@ export class GitHubTracker implements Tracker {
     if (!this.keyPattern.test(key)) throw new TicketError(`Invalid issue number: "${key}"`);
   }
 
+  /** One call to the REST API for the issues of GITHUB_REPOSITORY, with GITHUB_TOKEN from the environment. */
   private api(path: string, init: RequestInit): Promise<Response> {
     const { GITHUB_TOKEN, GITHUB_REPOSITORY } = this.env;
     if (!GITHUB_TOKEN) throw new TicketError("Set GITHUB_TOKEN to use the GitHub tracker.");

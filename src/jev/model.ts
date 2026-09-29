@@ -8,16 +8,19 @@ import { dirname } from "node:path";
 import type { JevConfig } from "../config.ts";
 import { CredentialError } from "../errors.ts";
 
+/** One yes/no question as Jev receives it: the instructions, and optionally what "yes" and "no" mean. */
 export interface NoulSpec {
   instructions: string;
   criteria?: { true: string; false: string };
 }
 
+/** One request: the text to judge (`state`) and the questions to answer about it, by id. */
 export interface NoulRequest {
   state: unknown;
   questions: Record<string, NoulSpec>;
 }
 
+/** Jev's answer to one request. */
 export interface NoulResult {
   /** Probability of "yes" (0–1) per question id. */
   answers: Record<string, number>;
@@ -25,6 +28,7 @@ export interface NoulResult {
   model: string;
 }
 
+/** What every gate asks its questions through. Tests use `FakeModel` or `RecordedModel`, never the real API. */
 export interface DecisionModel {
   readonly name: string;
   evaluate(req: NoulRequest): Promise<NoulResult>;
@@ -144,6 +148,7 @@ export class RecordingModel implements DecisionModel {
   }
 }
 
+/** JSON with the object keys sorted and undefined values left out, so equal requests give equal text. */
 export function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   if (value && typeof value === "object") {

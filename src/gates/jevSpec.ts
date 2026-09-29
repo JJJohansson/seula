@@ -50,6 +50,7 @@ export function specContext(spec: ParsedSpec, ticket?: string): SpecContext {
   };
 }
 
+/** One Jev request: the spec's context and one criterion, with every configured criterion question (g1 criterion 11). */
 export function criterionRequest(ctx: SpecContext, criterion: Pick<Criterion, "number" | "text">, config: SeulaConfig): NoulRequest {
   const questions = Object.fromEntries(
     Object.entries(config.jev.criterionQuestions).map(([id, q]) => [
@@ -60,6 +61,7 @@ export function criterionRequest(ctx: SpecContext, criterion: Pick<Criterion, "n
   return { state: { ...ctx, criterion: `${criterion.number}. ${criterion.text}` }, questions };
 }
 
+/** G1's Jev half: one request per criterion, each answer routed, and the worst result wins (g1 criteria 11-14). */
 export async function jevSpec(
   spec: ParsedSpec,
   config: SeulaConfig,
