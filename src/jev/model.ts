@@ -1,6 +1,9 @@
 /**
  * The decision model behind the judgement gates. Jev is the default, but the gates only
  * see this interface, so another model (or recorded answers) can stand in.
+ *
+ * "Noul" is Jev System One's name for a yes/no question. Its answer is one probability of
+ * "yes", which is also its confidence, so there is no separate confidence field.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
