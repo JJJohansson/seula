@@ -1,12 +1,12 @@
 # FEATURE: Reusable spec-to-plan workflow
 
-> **Status:** Approved (28 Sep 2026). Built: criteria 1–7 and 15 on 28 Sep 2026, criteria 8–14 on 29 Sep 2026. Nothing calls the workflow until its caller exists ([`adoption.md`](adoption.md) criterion 14), and it has not run for real yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.**
+> **Status:** Approved (28 Sep 2026). Built: criteria 1–7 and 15 on 28 Sep 2026, criteria 8–14 on 29 Sep 2026. Nothing calls the workflow until its caller exists ([`adoption.md`](adoption.md) criterion 14), and it has not run for real yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.** **The change to the ticket's part of a spec (the base copy in criterion 5, criterion 7, and `approve` keeping a buildable status in criterion 15) approved 29 Sep 2026; not yet built.**
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `spec-to-plan.yml`. When a spec pull request is merged,
 Claude writes an implementation plan into the spec's `## PLAN` section, with G2 in its loop.
-The workflow then checks the plan with G2 and Jev, marks the spec *Approved*, and opens a plan
-pull request for a person to review. It writes no code. A repo uses it through a short caller
+The workflow then checks the plan with G2 and Jev, records the approval in the spec (a new spec
+becomes *Approved*), and opens a plan pull request for a person to review. It writes no code. A repo uses it through a short caller
 workflow (see [`adoption.md`](adoption.md)).
 
 ## WHY / INTENT
@@ -29,6 +29,10 @@ building stay with a person for now.
 - The plan format and G2: [`g2-plan-gate.md`](g2-plan-gate.md).
 - The spec pull request and its ticket key: the head branch, as in
   [`board-sync.md`](board-sync.md) criterion 2.
+- The status block and a changed criterion: as in [`g2-plan-gate.md`](g2-plan-gate.md), DATA
+  SCHEMA. The status marker: the bold status label and the status after it, for example
+  `**Status:** Idea` or `**Status: Idea.**`. A buildable status is one of the config's
+  `buildableStatuses`.
 
 ## ACCEPTANCE CRITERIA
 1. `spec-to-plan.yml` runs on `workflow_call` with the inputs and secrets above. Its job runs
@@ -41,21 +45,25 @@ building stay with a person for now.
    changed, from the pull request's file list in the GitHub API, leaving out the files in the
    config's `ignore` list (such as the spec index). When there is none, or more than one, the
    run stops with a technical failure and opens no pull request.
-4. The workflow sets the spec's status line to `Approved`, with the date and the number of the
-   merged pull request, with `seula approve` (criterion 15). When `Approved` is not one of the
-   config's statuses, the run stops with a technical failure. The agent never changes the
-   status line.
+4. The workflow records the approval in the spec's status block, with the date and the number
+   of the merged pull request, with `seula approve` (criterion 15). When `Approved` is not one
+   of the config's statuses, the run stops with a technical failure. The agent never changes
+   the status block.
 5. Claude writes the plan into the spec's `## PLAN` section with the planner prompt
    (`prompts/planner.md`) and the seula plugin. It runs `seula gate g2` with `--approved` (the
-   spec as merged) until G2 passes, is unsure, or reaches the loop limit. The workflow copies
-   the spec as merged to `.seula/approved/<spec file name>` before it sets the status. The copy
-   is never committed.
+   spec as merged) and `--base .seula/base` until G2 passes, is unsure, or reaches the loop
+   limit. The workflow copies the spec as merged to `.seula/approved/<spec file name>` before it
+   sets the status. It copies the spec as it was before the pull request to
+   `.seula/base/<spec path>`: the spec at the merge base of the pull request's base and head
+   commits, from the GitHub API. When the spec didn't exist there, there is no base copy. The
+   copies are never committed.
 6. The agent can read the whole working directory and its installed skills, and can edit only
    the spec file. Its only shell command is seula's G2 gate. Otherwise it has the same limits as
    the spec writer: no git, no web pages, no Anthropic key in its shell commands, and no GitHub,
    Jira or Jev key ([`ticket-to-spec-workflow.md`](ticket-to-spec-workflow.md) criteria 5–6
    and 14).
-7. After the agent, the workflow runs G2 with the Jev key and `--approved` on the spec.
+7. After the agent, the workflow runs G2 with the Jev key, `--approved` and `--base` on the
+   spec.
 8. The workflow checks the agent's output and the spec for secrets before it commits, as
    ticket-to-spec does (criterion 13 there).
 9. The workflow commits the spec and the run file to `seula-plan/<run id in lowercase>` and
@@ -78,11 +86,17 @@ building stay with a person for now.
 14. Merging a plan pull request starts no workflow of seula's: its branch doesn't start with
     `seula/`. The ticket-to-spec workflow never takes a `seula-plan/` branch as the ticket's
     spec branch.
-15. `seula approve <spec> --pr <number>` changes the spec's status line to
-    `> **Status:** Approved (<date>, merged in #<number>)`, with today's date, and changes
-    nothing else in the file. It exits 64, and changes nothing, when the spec has no status
-    line, when `--pr` is not a positive whole number, or when `Approved` is not one of the
-    config's statuses.
+15. `seula approve <spec> --pr <number>` records the approval in the spec's status block, with
+    today's date, and changes nothing else in the file:
+    - When the status is not buildable, it replaces the status marker with
+      `**Status:** Approved (<date>, merged in #<number>).` and keeps the rest of the status
+      block.
+    - When the status is buildable, it keeps the status and adds the line
+      `> Change approved (<date>, merged in #<number>).` at the end of the status block's first
+      paragraph.
+
+    It exits 64, and changes nothing, when the spec has no status line, when `--pr` is not a
+    positive whole number, or when `Approved` is not one of the config's statuses.
 
 ## OUT OF SCOPE
 - Writing code, and gates G3 to G5.
@@ -101,6 +115,16 @@ building stay with a person for now.
   plan, and G2 checks it the same way.
 - A spec pull request on a branch from an older seula (`seula/meal-3-copy-…`): the key comes
   from the start of the name, as for board sync.
+- The merged pull request updated a spec that was already approved or built: the plan covers
+  only the changed criteria ([`g2-plan-gate.md`](g2-plan-gate.md) criterion 3), and the spec
+  keeps its status (criterion 15).
+- A status block over several lines, such as `> **Status: Idea.** Drafted from ticket` and
+  `> [MEAL-4](…)` on the next line: `approve` replaces only the status marker, so the rest of
+  the block stays as it was.
+- The pull request was merged with a merge commit, a squash or a rebase: the merge base is the
+  same in each case, so the base copy is the spec as it was before the pull request.
+- The spec pull request has several commits, for example one per round: the base copy is
+  still the spec before the first of them.
 
 ## PLAN
 To be split into units after approval: the G2 gate, the planner prompt, the workflow, the

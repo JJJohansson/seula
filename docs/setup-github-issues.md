@@ -53,8 +53,8 @@ be changed in `seula.config.json` → `tracker`.
 
 ## 5. Test it
 
-1. Open an issue with a clear goal, for example "Let users export this week's shopping list as a
-   CSV file, one row per item, with a header row."
+1. Open an issue with a clear goal, for example "Let users export their saved items as a CSV
+   file, one row per item, with a header row."
 2. Add the `seula:ready-for-spec` label.
 3. Within a few minutes: a pull request on a `seula/gh-<number>` branch, a comment on the
    issue with its link, and the label `seula:spec-review`.

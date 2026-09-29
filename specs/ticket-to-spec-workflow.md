@@ -1,6 +1,6 @@
 # FEATURE: Reusable ticket-to-spec and spec-check workflows
 
-> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved and built 27 Sep 2026; the Claude 401/403 case (`api_error_status`) is checked in the first real run. **Criterion 16 and the outputs corrected and approved 28 Sep 2026:** they now name the branch as the code does, after the run id in lowercase, not the ticket key.
+> **Status:** Approved (26 Sep 2026). Criteria 17–19 and the cost breakdown in criterion 11 approved and built 27 Sep 2026. **Change B1 (rounds): the changes to criteria 1, 3, 8, 16 and 19, and criteria 20–22 and 25–26, drafted 27 Sep 2026, not approved. Criteria 23–24 moved to [`round-extras.md`](round-extras.md) (Idea).** Credential errors: the change to criterion 17 and criteria 27–28 approved and built 27 Sep 2026; the Claude 401/403 case (`api_error_status`) is checked in the first real run. **Criterion 16 and the outputs corrected and approved 28 Sep 2026:** they now name the branch as the code does, after the run id in lowercase, not the ticket key. **The change to the ticket's part of a spec (criteria 12 and 15, criterion 29) approved 29 Sep 2026; not yet built.**
 
 ## OVERVIEW
 Two reusable GitHub Actions workflows in the seula repo. **ticket-to-spec** turns a tracker
@@ -60,7 +60,9 @@ approving it and merging stay with a person.
 11. The Claude cost of the run is added to the run file, with its breakdown: turns, duration,
     and tokens and cost per model ([`run-files.md`](run-files.md) criterion 10).
 12. `spec-check.yml` runs on `workflow_call`, finds the spec files that the pull request adds
-    or changes, and runs `seula check-spec` on them, skipping the config's `ignore` list. The
+    or changes, and runs `seula check-spec` on them with `--base`, skipping the config's
+    `ignore` list. The base folder holds each spec as it is at the merge base of the pull
+    request's base and head commits ([`g1-spec-gate.md`](g1-spec-gate.md), DATA SCHEMA). The
     check fails when a spec has a format error.
 13. Before it commits or posts anything, the workflow checks the files and the agent's output
     for the value of each secret it holds, and stops the run when it finds one.
@@ -68,8 +70,8 @@ approving it and merging stay with a person.
     Claude Code configuration (`.claude/settings.json`, `.claude/settings.local.json`,
     `.mcp.json`, its project skills and subagents) does not change them, and none of its hooks
     run.
-15. After the agent finishes, the workflow runs G1 with the Jev key on the spec that the agent
-    returned and records the result in the run file. That is the last G1 result for
+15. After the agent finishes, the workflow runs G1 with the Jev key and `--base .seula/base`
+    (criterion 29) on the spec that the agent returned and records the result in the run file. That is the last G1 result for
     criterion 8. When it sends the spec back or is unsure, its feedback goes on the ticket as
     well as in the pull request.
 16. Every run for the same ticket uses one branch and one pull request: the ticket's open
@@ -139,6 +141,11 @@ approving it and merging stay with a person.
 28. The failure report writes the reason as an error on the workflow run and in the run's job
     summary. It does this also when it can't post on the ticket: when there is no ticket key
     yet, or when the tracker refused the credential.
+29. Before the agent runs, the workflow copies the spec directory as it is on the base branch
+    to `.seula/base/<spec directory>` ([`g1-spec-gate.md`](g1-spec-gate.md), DATA SCHEMA). The
+    agent's G1 (criterion 4) and the workflow's G1 (criterion 15) run with `--base .seula/base`,
+    so they check only the ticket's change to a spec that already exists. The base folder is
+    never committed.
 
 ## OUT OF SCOPE
 - Building the feature from an approved spec.
@@ -184,6 +191,10 @@ approving it and merging stay with a person.
   names only that credential.
 - A run file written before rounds existed is round 1 ([`run-files.md`](run-files.md)
   criterion 12).
+- A later round for the same ticket: the draft spec comes from the pull request branch
+  (criterion 16), but the base folder still comes from the base branch, so G1 checks every
+  change the ticket made, not only the change since the last round.
+- The agent writes a new spec: it has no file in the base folder, so G1 checks all of it.
 
 ## PLAN
 1. Move the drafted workflow into seula as `.github/workflows/ticket-to-spec.yml`

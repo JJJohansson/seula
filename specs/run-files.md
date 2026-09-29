@@ -1,6 +1,6 @@
 # FEATURE: Run files and status
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5, 9 and 10, and criteria 11–13, drafted 27 Sep 2026, not approved.** **Plan step: the change to criterion 3 (after G2, a person reviews the plan) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
+> **Status: Active.** Written after the first implementation (26 Sep 2026); criteria confirmed 29 Sep 2026, with criterion 9 changed to "review and merge the spec". Criterion 10 approved and built 27 Sep 2026. **Change B (rounds): the changes to criteria 1, 5, 9 and 10, and criteria 11–13, drafted 27 Sep 2026, not approved.** **Plan step: the change to criterion 3 (after G2, a person reviews the plan) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)).
 
 ## OVERVIEW
 Every gate result for a feature is appended to one JSON file, and `seula status` shows where
@@ -43,9 +43,9 @@ see at a glance which features wait for their decision.
 8. `seula status` lists runs newest first, with id, title, step, gate history (✓ pass, ↺ back,
    ? unsure, ✗ fail, – skipped) and next action, under a first line that counts the runs waiting
    on a person.
-9. The next action reads "approve spec" when the step is spec review, "merge" after a G4 pass,
-   "answer the ticket questions" when the step is input and the run waits on a person, and
-   "loop limit reached" when the run is blocked.
+9. The next action reads "review and merge the spec" when the step is spec review (merging is
+   the approval), "merge" after a G4 pass, "answer the ticket questions" when the step is input
+   and the run waits on a person, and "loop limit reached" when the run is blocked.
 10. `seula update --run <id> --claude-result <file>` reads Claude Code's JSON output, adds its
     total cost to `cost.claudeUsd`, and appends one entry to `cost.claudeRuns` with the round,
     the turns, the duration, and the tokens and cost per model. It stores only numbers and

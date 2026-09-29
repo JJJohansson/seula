@@ -1,6 +1,6 @@
 # FEATURE: G2 plan gate
 
-> **Status:** Approved (28 Sep 2026). Built 28 Sep 2026 in two units: the script rules, then the Jev flags and the run file.
+> **Status:** Approved (28 Sep 2026). Built 28 Sep 2026 in two units: the script rules, then the Jev flags and the run file. **The change to the ticket's part of a spec (`--base`, the status block, criteria 2, 3 and 5) approved 29 Sep 2026; not yet built.**
 
 ## OVERVIEW
 A command, `seula gate g2 <spec>`, that checks the plan in an approved spec's `## PLAN` section
@@ -17,9 +17,14 @@ personal data. Jev flags them. A flag never sends the plan back; it tells the re
 look. The gate also checks that the plan changed nothing else in the spec, because merging the
 spec pull request approved the rest of it.
 
+When the merged pull request changed a spec that already existed, the plan covers only that
+change. The rest of the spec was planned and built before.
+
 ## INPUTS / OUTPUTS
 - Inputs: a spec file with a `## PLAN` section; an optional `--approved <file>`, the spec as it
-  was merged; `seula.config.json`; `TYPESAFE_API_KEY` or a recording file; `--run <id>`.
+  was merged; an optional `--base <dir>`, the spec as it was before the merge
+  ([`g1-spec-gate.md`](g1-spec-gate.md), DATA SCHEMA); `seula.config.json`; `TYPESAFE_API_KEY`
+  or a recording file; `--run <id>`.
 - Outputs: a text or JSON report; an exit code (see `docs/quality-gates.md`); a G2 event in the
   run file when `--run` is given.
 
@@ -30,6 +35,11 @@ spec pull request approved the rest of it.
   commas). For example:
   `1. Add the description meta tag. Criteria: 1, 2. Test: client/index.test.ts "criterion 1:
   the page has a description". Files: client/index.html.`
+- A changed criterion: as in [`g1-spec-gate.md`](g1-spec-gate.md), DATA SCHEMA.
+- The status block: the status line and the lines that start with `>` directly after it.
+- A changed task: a numbered item in `## PLAN` whose text is not in the base version's
+  `## PLAN`, with whitespace ignored. Without `--base`, and for a new spec, every task is
+  changed.
 - Config: `g2.questions`, the flag questions, each with its `instructions`, its `criteria`
   and optional `passAt` (default 0.75). Defaults: `signIn` (sign-in, sessions or permissions),
   `storedData` (stored data or the database schema) and `personalData` (personal data).
@@ -37,13 +47,16 @@ spec pull request approved the rest of it.
 ## ACCEPTANCE CRITERIA
 1. `seula gate g2 <spec>` reports an error when the spec has no `## PLAN` section, or when the
    section has no numbered task.
-2. It reports an error for each task that has no `Criteria:` with a criterion number, no
-   `Test:` with text, or no `Files:` with a path.
-3. It reports an error for each acceptance criterion that no task names in `Criteria:`, and for
-   each number in a `Criteria:` that is not an acceptance criterion of the spec.
+2. It reports an error for each changed task that has no `Criteria:` with a criterion number,
+   no `Test:` with text, or no `Files:` with a path. A task that is unchanged from the base
+   version is not checked.
+3. It reports an error for each changed criterion that no changed task names in `Criteria:`,
+   and for each number in a changed task's `Criteria:` that is not an acceptance criterion of
+   the spec. Without `--base`, and for a new spec, every criterion and every task is changed.
+   A changed task can also name a criterion that did not change.
 4. It reports an error for each path in `Files:` that is absolute or contains `..`.
 5. With `--approved <file>`, it reports an error when the spec differs from that file outside
-   the `## PLAN` section and the status line. The error names the first section that differs.
+   the `## PLAN` section and the status block. The error names the first section that differs.
 6. It calls Jev only when criteria 1–5 find no error. One request holds the spec's title,
    overview and acceptance criteria and the plan, with the flag questions from `g2.questions`.
 7. A flag question passes when the probability of "yes" is at most 1 minus its `passAt`.
@@ -73,4 +86,11 @@ spec pull request approved the rest of it.
 - `Criteria: 2-4` names 2, 3 and 4. A range whose end is below its start is an error.
 - A spec with no acceptance criteria: criterion 3 has nothing to cover, and G1 has already
   reported the missing criteria.
+- A merged change with no changed criterion, for example only a new edge case: criterion 3 has
+  nothing to cover, and the plan still needs at least one task (criterion 1).
+- A spec that already has a `## PLAN` from an earlier change, also one in free text: its
+  unchanged tasks are not checked (criteria 2 and 3), and they don't cover a changed criterion,
+  because they planned the earlier version. The planner adds tasks for the new change.
+- The planner edits an old task, for example to add a criterion to it: the task is changed, so
+  it must have all three labels.
 - Windows line endings parse the same as Unix line endings.

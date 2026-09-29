@@ -22,12 +22,13 @@ starts workflows that are on the default branch.
 
 Use a project (the free Jira Cloud plan is enough) whose workflow has these statuses:
 
-**Ready for spec → Needs input → Spec review → Planning → Code review → Done**
+**To Do → Ready for spec → Needs input → Spec review → Planning → Building → Code review → Done**
 
-For a first setup, allow transitions from any status to any status. seula moves tickets by the
-**status name**; if yours differ, set them in `seula.config.json` → `tracker.states`. Planning
-is where [board sync](#7-board-sync-optional) moves a ticket when its spec pull request is
-merged.
+For a first setup, allow transitions from any status to any status. seula moves tickets only
+to **Needs input**, **Spec review** and **Planning**, by the **status name**; if yours differ,
+set them in `seula.config.json` → `tracker.states`. Planning is where
+[board sync](#7-board-sync-optional) moves a ticket when its spec pull request is merged. A
+person moves tickets to the other statuses.
 
 ## 3. Tokens
 
