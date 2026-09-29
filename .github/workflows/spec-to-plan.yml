@@ -108,7 +108,9 @@ jobs:
         run: |
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid pull request number"; exit 1; }
           # Criterion 2: the key from the branch name, with no tracker call (trackers criterion 17).
-          run_id="$($SEULA tracker key --tracker "$SEULA_TRACKER" --branch "$HEAD_REF" | jq -r .runId)"
+          key_json="$($SEULA tracker key --tracker "$SEULA_TRACKER" --branch "$HEAD_REF")"
+          run_id="$(jq -r .runId <<< "$key_json")"
+          ticket_key="$(jq -r .key <<< "$key_json")"
           # Criterion 3: the pull request's own file list works for merge, squash and rebase
           # merges. Keep the files in the spec directory that still exist, leaving out the
           # config's ignore list (such as the spec index).
@@ -117,7 +119,12 @@ jobs:
           ignore="$(jq -c '.ignore' <<< "$config")"
           # A file first, so a failed API call fails this step instead of looking like "0 specs".
           files="${RUNNER_TEMP:-.}/pr-files.txt"
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' > "$files"
+          # Criterion 12: a refused token is named in the failure report (SEULA_REFUSED).
+          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename' > "$files" 2> gh-error.txt; then
+            cat gh-error.txt >&2
+            if grep -qE 'HTTP 40[13]' gh-error.txt; then echo "SEULA_REFUSED=gh" >> "$GITHUB_ENV"; fi
+            exit 1
+          fi
           mapfile -t specs < <(
             jq -R -r --arg dir "$spec_dir/" --argjson ignore "$ignore" \
               'select(startswith($dir) and endswith(".md")) | select(. as $f | $ignore | index($f) | not)' < "$files" |
@@ -130,8 +137,11 @@ jobs:
           spec="${specs[0]}"
           name="${spec##*/}"
           [[ "$name" =~ ^[A-Za-z0-9._-]+\.md$ ]] || { echo "::error::Unexpected spec file name"; exit 1; }
+          runs_dir="$(jq -r '.runsDir | sub("/+$"; "")' <<< "$config")"
           {
             echo "RUN_ID=$run_id"
+            echo "TICKET_KEY=$ticket_key"
+            echo "RUN_FILE=$runs_dir/$run_id.json"
             echo "SPEC=$spec"
             echo "APPROVED=.seula/approved/$name"
             echo "PR_NUMBER=$PR_NUMBER"
@@ -139,6 +149,7 @@ jobs:
           echo "Plan for $run_id: $spec"
 
       - name: Keep the approved copy, then approve the spec (criteria 4-5)
+        id: approve
         run: |
           # G2 checks the plan against this copy of the spec as merged (--approved). It stays on
           # the runner: no step stages .seula/approved.
@@ -222,4 +233,287 @@ jobs:
             echo "::warning::Jev refused TYPESAFE_API_KEY (the repository secret SEULA_TYPESAFE_API_KEY), so G2 could not ask its flag questions."
           elif [ "$code" -ge 64 ]; then
             echo "::warning::G2 could not run (exit $code)."
+          fi
+
+      - name: Read the result (criteria 10, 13)
+        id: result
+        env:
+          CLAUDE_EXIT: ${{ steps.claude.outputs.code }}
+          HAS_JEV: ${{ secrets.TYPESAFE_API_KEY != '' }}
+        run: |
+          # Criterion 13: the cost with its breakdown (turns, duration, tokens and cost per model).
+          $SEULA update --run "$RUN_ID" --claude-result claude.json || echo "::warning::Cost not stored"
+          path="$(jq -r '.structured_output.spec_path // ""' claude.json 2>/dev/null || echo "")"
+          agent="$(jq -r '.structured_output.status // ""' claude.json 2>/dev/null || echo "")"
+          questions="$(jq -r '(.structured_output.questions // []) | length' claude.json 2>/dev/null || echo 0)"
+          # Criterion 12: a Claude error, or a spec other than the one given, is a technical
+          # failure. The reason is a code from a fixed list, so none of Claude's text is posted.
+          status=""
+          reason=""
+          subtype="$(jq -r '.subtype // ""' claude.json 2>/dev/null || echo "")"
+          is_error="$(jq -r '.is_error // false' claude.json 2>/dev/null || echo "")"
+          if [ "$CLAUDE_EXIT" != "0" ] || [ "$is_error" = "true" ] || [[ "$subtype" == error* ]]; then
+            if [ "$subtype" = "error_max_turns" ]; then
+              reason=turn_cap
+            elif jq -e '.api_error_status == 401 or .api_error_status == 403' claude.json > /dev/null 2>&1; then
+              reason=claude_key
+            elif jq -e '((.result // "") | tostring | startswith("API Error")) or has("api_error_status")' claude.json > /dev/null 2>&1; then
+              reason=claude_api
+            else
+              reason=claude_other
+            fi
+            echo "::error::Claude stopped with an error (exit $CLAUDE_EXIT, $reason)."
+            status=failed
+          elif [ "$path" != "$SPEC" ]; then
+            echo "::error::The agent returned the spec path '$path', not '$SPEC'."
+            status=failed
+            reason=no_spec
+          fi
+          # Criterion 10: trust the gate record, not the agent's own report. A skipped G2 counts
+          # only when no Jev key is configured, so a lost key can't pass silently.
+          g2="$(jq -r '[.events[] | select(.gate == "G2")] | last | .result // "none"' "$RUN_FILE")"
+          blocked="$(jq -r '.blocked // false' "$RUN_FILE")"
+          if [ -z "$status" ]; then
+            if [ "$blocked" = "true" ] || [ "$agent" = "blocked" ]; then
+              status=blocked
+            elif [ "$questions" != "0" ] || [ "$agent" = "needs_input" ]; then
+              status=draft
+            elif [ "$g2" = "review" ]; then
+              status=review
+            elif [ "$g2" = "pass" ] || { [ "$g2" = "skipped" ] && [ "$HAS_JEV" != "true" ]; }; then
+              status=ready
+            else
+              status=draft
+            fi
+          fi
+          {
+            echo "status=$status"
+            echo "g2=$g2"
+            echo "reason=$reason"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check the agent's output for secrets (criterion 8)
+        id: secrets
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          SEULA_GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          # Everything that later steps commit or post: the spec, the run file and the agent's
+          # output. The check names a leaked secret but never prints its value.
+          files=("$SPEC" "$RUN_FILE")
+          if [ -f claude.json ]; then files+=(claude.json); fi
+          leaked=0
+          for name in ANTHROPIC_API_KEY TYPESAFE_API_KEY SEULA_GH_TOKEN JIRA_API_TOKEN; do
+            value="${!name:-}"
+            if [ -z "$value" ]; then continue; fi
+            if grep -rqF -- "$value" "${files[@]}" 2>/dev/null; then
+              echo "::error::The value of $name appears in the agent's output. Nothing is committed or posted."
+              leaked=1
+            fi
+          done
+          exit "$leaked"
+
+      - name: Commit and open the plan pull request (criterion 9)
+        id: pr
+        if: steps.result.outputs.status != 'failed'
+        env:
+          GH_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          STATUS: ${{ steps.result.outputs.status }}
+          G2_RESULT: ${{ steps.result.outputs.g2 }}
+        run: |
+          title="$(head -n 1 "$SPEC" | sed -E 's/^#[[:space:]]*(FEATURE:[[:space:]]*)?//')"
+          # Criterion 14: a seula-plan/ branch, so its merge starts no seula workflow, and
+          # ticket-to-spec never takes it for a spec branch.
+          branch="seula-plan/$(printf '%s' "$RUN_ID" | tr '[:upper:]' '[:lower:]')"
+          git config user.name "seula[bot]"
+          git config user.email "seula-bot@users.noreply.github.com"
+          git checkout -b "$branch"
+          # Only the spec and the run file: the approved copy in .seula/approved stays on the runner.
+          git add "$SPEC" "$RUN_FILE"
+          git commit -m "plan($RUN_ID): $title" -m "Planned by Claude from the approved spec; checked by seula G2."
+          # The token reaches only this step's git commands, not the git config.
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git_auth() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
+          # The branch belongs to this workflow; a later run for the same ticket regenerates it.
+          git_auth push --force -u origin "$branch"
+
+          ticket_link="$(jq -r '.links.ticket // ""' "$RUN_FILE")"
+          {
+            echo "## Summary"
+            echo
+            if [ -n "$ticket_link" ]; then ticket_ref="[$TICKET_KEY]($ticket_link)"; else ticket_ref="$TICKET_KEY"; fi
+            echo "Plan for $ticket_ref, in the \`## PLAN\` section of \`$SPEC\`. The spec was approved by merging #$PR_NUMBER."
+            jq -r '.structured_output.summary // ""' claude.json
+            echo
+            echo "Planned by Claude from the approved spec and checked by [seula](https://github.com/JJJohansson/seula) G2. **A person reviews the plan and merges.**"
+            if [ "$STATUS" = "review" ]; then
+              echo
+              echo "## Needs your judgement"
+              echo
+              echo "G2 flagged a risky area. Check these tasks before you merge the plan."
+              echo
+              jq -r '[.events[] | select(.gate == "G2")] | last | (.feedback // [])[] | select(test("→ flag")) | "- " + .' "$RUN_FILE"
+            elif [ "$STATUS" != "ready" ]; then
+              echo
+              echo "> **Draft: the plan is not finished ($STATUS).**"
+              jq -r '(.structured_output.questions // [])[] | "> - " + .' claude.json
+              jq -r '[.events[] | select(.gate == "G2")] | last | (.feedback // [])[] | "> - " + .' "$RUN_FILE"
+            fi
+            echo
+            echo "## Gate results"
+            echo
+            jq -r '.events[] | select(.gate == "G2") | "- **G2** attempt \(.attempt): \(.result). \(.summary // "")", ((.feedback // [])[] | "  - \(.)")' "$RUN_FILE"
+            echo
+            jq -r '"Cost: Claude $\(.cost.claudeUsd * 100 | round / 100), Jev $\(.cost.jevUsd * 100000 | round / 100000) (all runs for this ticket)"' "$RUN_FILE"
+            echo
+            echo "## Checks"
+            echo
+            echo "- [x] seula G2 on the plan: every criterion has a task, a test and files (last result: $G2_RESULT)"
+            echo "- [ ] The repo's own CI: runs on this pull request"
+            echo "- [ ] A person has read the plan"
+          } > pr-body.md
+
+          # Criterion 10: ready on pass, or on flags only (review); otherwise a draft.
+          draft=()
+          if [ "$STATUS" != "ready" ] && [ "$STATUS" != "review" ]; then draft=(--draft); fi
+          if url="$(gh pr view "$branch" --json url -q .url 2>/dev/null)"; then
+            gh pr edit "$branch" --body-file pr-body.md
+            if [ "${#draft[@]}" -eq 0 ]; then
+              gh pr ready "$branch" || echo "::warning::Could not mark the pull request ready"
+            else
+              gh pr ready "$branch" --undo || echo "::warning::Could not mark the pull request as a draft"
+            fi
+          else
+            url="$(gh pr create --base "$BASE_BRANCH" --head "$branch" --title "plan($RUN_ID): $title" --body-file pr-body.md "${draft[@]}")"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Report on the ticket (criterion 11)
+        id: report
+        if: steps.result.outputs.status != 'failed'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          STATUS: ${{ steps.result.outputs.status }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          # Criterion 11: the comment describes what happened; the ticket stays where it is.
+          if [ "$STATUS" = "ready" ] || [ "$STATUS" = "review" ]; then
+            {
+              printf 'seula · plan ready for review: %s\n\n' "$PR_URL"
+              printf 'G2 checked that every acceptance criterion has a task, a test and files. Next, a person reviews the plan and merges it.\n'
+              if [ "$STATUS" = "review" ]; then
+                printf '\nG2 flagged these areas for the reviewer:\n'
+                jq -r '[.events[] | select(.gate == "G2")] | last | (.feedback // [])[] | select(test("→ flag")) | "- " + .' "$RUN_FILE" 2>/dev/null || true
+              fi
+            } > comment.md
+          else
+            {
+              printf 'seula · the plan is not finished (%s). Draft pull request: %s\n\n' "$STATUS" "${PR_URL:-none}"
+              jq -r '(.structured_output.questions // []) | map("- " + .) | join("\n")' claude.json 2>/dev/null || true
+              feedback="$(jq -r '[.events[] | select(.gate == "G2")] | last | .feedback // [] | map("- " + .) | join("\n")' "$RUN_FILE" 2>/dev/null || true)"
+              if [ -n "$feedback" ]; then printf '\n\nG2 found these gaps in the plan:\n%s\n' "$feedback"; fi
+            } > comment.md
+          fi
+          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file comment.md ||
+            echo "::warning::Could not comment on the ticket"
+
+      - name: Report a failure on the ticket (criterion 12)
+        if: failure() || cancelled() || steps.result.outputs.status == 'failed'
+        env:
+          GITHUB_TOKEN: ${{ secrets.SEULA_GH_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          OUT_CHECKOUT: ${{ steps.checkout.outcome }}
+          OUT_FIND: ${{ steps.find.outcome }}
+          OUT_APPROVE: ${{ steps.approve.outcome }}
+          OUT_INSTALL: ${{ steps.install.outcome }}
+          OUT_CLAUDE: ${{ steps.claude.outcome }}
+          OUT_G2: ${{ steps.g2.outcome }}
+          OUT_RESULT: ${{ steps.result.outcome }}
+          OUT_SECRETS: ${{ steps.secrets.outcome }}
+          OUT_PR: ${{ steps.pr.outcome }}
+          OUT_REPORT: ${{ steps.report.outcome }}
+          RESULT_REASON: ${{ steps.result.outputs.reason }}
+        run: |
+          # Criterion 12, as in ticket-to-spec: fixed text, a step's name and the run link, never
+          # the agent's output. The first step that failed is the reason.
+          steps=(
+            "OUT_CHECKOUT|Check out the repo"
+            "OUT_FIND|Find the ticket and the spec"
+            "OUT_APPROVE|Keep the approved copy, then approve the spec"
+            "OUT_INSTALL|Install Claude Code"
+            "OUT_CLAUDE|Write the plan"
+            "OUT_G2|G2 · the workflow's own check"
+            "OUT_RESULT|Read the result"
+            "OUT_SECRETS|Check the agent's output for secrets"
+            "OUT_PR|Commit and open the plan pull request"
+            "OUT_REPORT|Report on the ticket"
+          )
+          admin="It may be expired or revoked. A repository admin can replace the secret."
+          reason=""
+          first=""
+          for entry in "${steps[@]}"; do
+            var="${entry%%|*}"
+            name="${entry#*|}"
+            case "${!var:-}" in
+              failure) reason="Failed at the step \"$name\"."; first="$var"; break ;;
+              cancelled) reason="Cancelled at the step \"$name\", for example by the run's time limit."; break ;;
+            esac
+          done
+          if [ "$first" = "OUT_CHECKOUT" ]; then
+            reason="$reason Its only credential is \`SEULA_GH_TOKEN\`. $admin"
+          fi
+          if [ "${SEULA_REFUSED:-}" = "gh" ]; then
+            reason="$reason GitHub refused \`SEULA_GH_TOKEN\` (the repository secret of the same name). $admin"
+          fi
+          if [ -z "$reason" ]; then
+            case "${RESULT_REASON:-}" in
+              turn_cap) reason="Claude reached its turn limit." ;;
+              claude_key) reason="Anthropic refused \`ANTHROPIC_API_KEY\` (the repository secret \`SEULA_ANTHROPIC_API_KEY\`). $admin" ;;
+              claude_api) reason="Claude stopped with an API error." ;;
+              claude_other) reason="Claude stopped with an error." ;;
+              no_spec) reason="The agent returned another spec than the approved one." ;;
+              *) reason="Not known. The run's log has the details." ;;
+            esac
+          fi
+          echo "::error::seula failed to run. $reason"
+          printf '## seula failed to run\n\n%s\n' "$reason" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          if [ -z "${TICKET_KEY:-}" ]; then
+            echo "::warning::No ticket key, so the failure can't be reported on the ticket."
+            exit 0
+          fi
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            printf 'seula failed to run: %s\n\n' "$run_url"
+            printf 'Why: %s\n\n' "$reason"
+            printf 'This is a technical failure in the plan step. The approved spec is not changed on the base branch.\n'
+            printf 'A person can re-run the workflow from the link.\n'
+          } > failure-comment.md
+          $SEULA tracker comment --tracker "$SEULA_TRACKER" --key "$TICKET_KEY" --text-file failure-comment.md ||
+            echo "::warning::Could not report the failure on the ticket"
+
+      - name: Summary
+        if: always()
+        env:
+          STATUS: ${{ steps.result.outputs.status }}
+        run: |
+          {
+            echo '```'
+            $SEULA status 2>/dev/null || echo "No run file."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$STATUS" = "failed" ]; then
+            echo "::error::seula failed to run; the ticket has a comment with this run's link."
+            exit 1
+          fi
+          if [ "$STATUS" = "blocked" ]; then
+            echo "::error::The plan is blocked by G2's loop limit; see the draft pull request."
+            exit 1
           fi
