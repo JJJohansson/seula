@@ -3,7 +3,7 @@
  * 1–5). No model involved. A plan that fails here never reaches Jev.
  */
 import type { SeulaConfig } from "../config.ts";
-import { findSection, normalizeHeading, parseSpec } from "../spec.ts";
+import { findSection, normalizeHeading, parseSpec, planItems } from "../spec.ts";
 import type { Finding } from "./checkSpec.ts";
 
 export interface PlanTask {
@@ -21,27 +21,7 @@ export interface CheckPlanResult {
   tasks: PlanTask[];
 }
 
-const ITEM = /^(\d+)[.)]\s+(.*)$/;
 const LABEL_END = String.raw`(?=\s(?:Criteria|Test|Files):|$)`;
-
-/** The numbered items of the plan, each with its wrapped lines joined into one line. */
-function planItems(body: string, firstLine: number): { number: string; text: string; line: number }[] {
-  const lines = body.split("\n");
-  const items: { number: string; text: string; line: number }[] = [];
-  let current: { number: string; text: string; line: number } | undefined;
-  for (const [i, raw] of lines.entries()) {
-    const m = ITEM.exec(raw);
-    if (m) {
-      current = { number: m[1] ?? "", text: m[2] ?? "", line: firstLine + 1 + i };
-      items.push(current);
-    } else if (current && raw.trim() !== "" && !raw.startsWith("#") && (/^\s/.test(raw) || lines[i - 1]?.trim() !== "")) {
-      current.text += ` ${raw.trim()}`;
-    } else {
-      current = undefined;
-    }
-  }
-  return items;
-}
 
 function label(text: string, name: string): string {
   return (new RegExp(`${name}:\\s*(.*?)${LABEL_END}`).exec(text)?.[1] ?? "").trim().replace(/\.$/, "").trim();
