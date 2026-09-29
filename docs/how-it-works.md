@@ -155,9 +155,9 @@ The full steps are in the setup guide for your tracker: [Jira](setup-jira.md) or
 3. **Add the repository secrets** that `init` lists: `SEULA_ANTHROPIC_API_KEY`,
    `SEULA_GH_TOKEN`, optional `SEULA_TYPESAFE_API_KEY`, and for Jira `JIRA_BASE_URL`,
    `JIRA_EMAIL` and `JIRA_API_TOKEN`.
-4. **Set up the board.** Jira: the statuses Ready for spec → Needs input → Spec review →
-   Planning → Code review → Done, and the automation rule. GitHub Issues: the label
-   `seula:ready-for-spec`.
+4. **Set up the board.** Jira: the statuses To Do → Ready for spec → Needs input → Spec review
+   → Planning → Building → Code review → Done, and the automation rule. GitHub Issues: the
+   label `seula:ready-for-spec`.
 5. **Turn on board sync:** set `tracker.states.planning`, and require the check
    `seula / ticket state` in a ruleset after it has run once.
 6. **Test it** with one clear ticket and one ticket that has only a title.

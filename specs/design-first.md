@@ -1,6 +1,6 @@
 # FEATURE: Design-first option
 
-> **Status:** Approved (26 Sep 2026)
+> **Status:** Approved (26 Sep 2026). Built 26 Sep 2026: `init --design-first` and G0's `uiChange` question.
 
 ## OVERVIEW
 An optional setting that makes a ready design a precondition for writing the spec of any

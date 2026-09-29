@@ -1,6 +1,6 @@
 # FEATURE: Cut-off calibration
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria.
+> **Status: Active.** Written after the first implementation (26 Sep 2026); criteria confirmed 29 Sep 2026.
 
 ## OVERVIEW
 `seula calibrate` runs Jev on labeled example criteria and recommends pass and back cut-offs

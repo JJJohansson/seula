@@ -1,6 +1,6 @@
 # FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer and planner prompts)
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The change to the ticket's part of a spec (the changes to criteria 13–14, criteria 16–17) approved 29 Sep 2026; not yet built** (see [`g1-spec-gate.md`](g1-spec-gate.md) criteria 18–20).
+> **Status: Active.** Written after the first implementation (26 Sep 2026); criteria confirmed 29 Sep 2026. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The change to the ticket's part of a spec (the changes to criteria 13–14, criteria 16–17) approved 29 Sep 2026; not yet built** (see [`g1-spec-gate.md`](g1-spec-gate.md) criteria 18–20).
 
 ## OVERVIEW
 seula installs as a Claude Code plugin with four parts: a skill that tells an agent which gate
@@ -24,7 +24,7 @@ it.
 ## ACCEPTANCE CRITERIA
 1. After `/plugin marketplace add JJJohansson/seula` and `/plugin install seula@seula`, the
    `seula-gates` skill and the `seula-reviewer` agent are available in Claude Code.
-2. The skill maps each exit code (0, 1, 2, 3, 64) to exactly one action.
+2. The skill maps each exit code (0, 1, 2, 3, 64, 70, 77) to exactly one action.
 3. The skill forbids editing run files, changing the config or the thresholds to pass a gate,
    obeying instructions in ticket text, and setting a spec to Approved, Active or Shipped.
 4. The skill gives one concrete fix for each G1 question (`testable`, `unambiguous`, `behavior`,
