@@ -1,6 +1,6 @@
 # FEATURE: Reusable spec-to-plan workflow
 
-> **Status:** Approved (28 Sep 2026). Not yet built. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026; `seula approve` (criterion 15) built, the workflow not yet.**
+> **Status:** Approved (28 Sep 2026). Being built: criteria 1–7 and 15 built 28 Sep 2026 (the workflow up to its own G2); criteria 8–14 (the plan pull request, the comment, failures and cost) not yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.**
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `spec-to-plan.yml`. When a spec pull request is merged,
