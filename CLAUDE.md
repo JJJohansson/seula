@@ -23,6 +23,11 @@ Node 22.18 or later: Node runs the TypeScript sources directly (type stripping),
 may use only erasable syntax (no enums, namespaces or parameter properties), and relative imports
 end in `.ts`.
 
+The workflow script tests run a workflow step's bash with stubs. They need bash (Git Bash on
+Windows, not WSL) and `jq`, as GitHub's Ubuntu runner has; without them they are skipped, and CI
+runs them all. `test/helpers.ts` makes Windows behave like the runner: `jq -b` (no CRLF), and no
+CRLF conversion in the tests' git repos.
+
 ## Architecture
 
 - `src/cli.ts`: argument parsing, exit codes, output formatting. No gate logic.

@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { hasBash, hasJq, pathWith } from "./helpers.ts";
 
 const WORKFLOW = readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "ticket-to-spec.yml"), "utf8").replace(/\r\n/g, "\n");
 
@@ -110,7 +111,6 @@ test("ticket-to-spec criterion 13: the secret check runs before anything is comm
   }
 });
 
-const hasBash = process.platform !== "win32" && spawnSync("bash", ["--version"]).status === 0;
 
 function runScan(files: Record<string, string>, env: Record<string, string>) {
   const d = mkdtempSync(join(tmpdir(), "seula-scan-"));
@@ -247,7 +247,6 @@ test("ticket-to-spec criterion 9: a review moves the ticket to spec review and l
   assert.ok(report.includes("→ review"), "lists the criteria G1 was unsure about");
 });
 
-const hasJq = hasBash && spawnSync("jq", ["--version"]).status === 0;
 
 function readResultOutputs(opts: { status: string; g1: string; hasJev?: string; questions?: string[]; claudeExit?: string; specPath?: string; claude?: Record<string, unknown> | string }): Record<string, string> {
   const d = mkdtempSync(join(tmpdir(), "seula-result-"));
@@ -341,7 +340,7 @@ function reportFailure(env: Record<string, string>) {
   const r = spawnSync("bash", ["-eo", "pipefail", "-c", script(FAILURE)], {
     cwd: d,
     encoding: "utf8",
-    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, SEULA: "seula", SEULA_TRACKER: "jira", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "42", GITHUB_STEP_SUMMARY: join(d, "summary.md"), ...env },
+    env: { PATH: pathWith(bin), SEULA: "seula", SEULA_TRACKER: "jira", GITHUB_SERVER_URL: "https://github.com", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "42", GITHUB_STEP_SUMMARY: join(d, "summary.md"), ...env },
   });
   const read = (f: string) => { try { return readFileSync(join(d, f), "utf8"); } catch { return ""; } };
   return { r, calls: read("calls.txt"), posted: read("posted.txt"), summary: read("summary.md") };
@@ -565,6 +564,8 @@ function earlierRun(openBranches: string[]) {
   spawnSync("git", ["init", "-q", "--bare", origin]);
   mkdirSync(work);
   git(work, "init", "-q", "-b", "main");
+  // As on the runner's Linux git: no CRLF conversion, also where Git for Windows sets autocrlf.
+  git(work, "config", "core.autocrlf", "false");
   mkdirSync(join(work, "specs"));
   writeFileSync(join(work, "specs", "README.md"), "index v1\n");
   git(work, "add", ".");
@@ -586,7 +587,7 @@ function earlierRun(openBranches: string[]) {
   const r = spawnSync("bash", ["-eo", "pipefail", "-c", script(EARLIER)], {
     cwd: work,
     encoding: "utf8",
-    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, GH_TOKEN: "x", RUN_ID: "MEAL-3", SPEC_DIR: "specs", GITHUB_ENV: envFile },
+    env: { PATH: pathWith(bin), GH_TOKEN: "x", RUN_ID: "MEAL-3", SPEC_DIR: "specs", GITHUB_ENV: envFile },
   });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const env = Object.fromEntries(readFileSync(envFile, "utf8").trim().split("\n").map((l) => l.split("=")));

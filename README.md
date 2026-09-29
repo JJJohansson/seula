@@ -74,5 +74,8 @@ npm test           # Node's built-in test runner, on the TypeScript directly
 npm run typecheck
 ```
 
+The tests of the workflows' bash steps need bash (Git Bash on Windows) and `jq`; without them
+they are skipped, and CI runs them all.
+
 seula is built with spec-driven development: a spec first, then tests, one pull request per
 unit. See [`CLAUDE.md`](CLAUDE.md) for the conventions. It has no runtime dependencies.
