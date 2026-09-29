@@ -460,3 +460,12 @@ test("spec-to-plan criterion 15: seula approve rewrites the file; a bad --pr exi
   assert.equal(r.code, 0, r.stderr);
   assert.match(readFileSync(spec, "utf8"), /^> \*\*Status:\*\* Approved \(\d{1,2} [A-Z][a-z]{2} \d{4}, merged in #142\)\r?$/m);
 });
+
+test("calibration criterion 7: calibrate without a key or a recording exits 64 and names the key", () => {
+  const d = workdir();
+  copyFileSync(join(import.meta.dirname, "..", "examples", "calibration", "labels.example.json"), join(d, "labels.json"));
+  const r = run(["calibrate", "labels.json"], d);
+  assert.equal(r.code, 64);
+  assert.match(r.stderr, /TYPESAFE_API_KEY/);
+  assert.equal(r.stdout, "");
+});
