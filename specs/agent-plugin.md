@@ -1,6 +1,6 @@
 # FEATURE: Claude Code plugin (skill, reviewer agent, spec-writer and planner prompts)
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The change to the ticket's part of a spec (the changes to criteria 13–14, criteria 16–17) drafted 29 Sep 2026, not approved** (see [`g1-spec-gate.md`](g1-spec-gate.md) criteria 18–20).
+> **Status: Active.** Written after the first implementation (26 Sep 2026); confirm the criteria. Criteria 9–11 approved and built 27 Sep 2026. **Plan step: the planner prompt and the skill's G2 part (the inputs, criteria 12–15 and the out-of-scope line) approved and built 28 Sep 2026** (see [`spec-to-plan-workflow.md`](spec-to-plan-workflow.md)). **The change to the ticket's part of a spec (the changes to criteria 13–14, criteria 16–17) approved 29 Sep 2026; not yet built** (see [`g1-spec-gate.md`](g1-spec-gate.md) criteria 18–20).
 
 ## OVERVIEW
 seula installs as a Claude Code plugin with four parts: a skill that tells an agent which gate

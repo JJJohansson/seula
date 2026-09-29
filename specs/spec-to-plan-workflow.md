@@ -1,6 +1,6 @@
 # FEATURE: Reusable spec-to-plan workflow
 
-> **Status:** Approved (28 Sep 2026). Built: criteria 1–7 and 15 on 28 Sep 2026, criteria 8–14 on 29 Sep 2026. Nothing calls the workflow until its caller exists ([`adoption.md`](adoption.md) criterion 14), and it has not run for real yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.** **The change to the ticket's part of a spec (the base copy in criterion 5, criterion 7, and `approve` keeping a buildable status in criterion 15) drafted 29 Sep 2026, not approved.**
+> **Status:** Approved (28 Sep 2026). Built: criteria 1–7 and 15 on 28 Sep 2026, criteria 8–14 on 29 Sep 2026. Nothing calls the workflow until its caller exists ([`adoption.md`](adoption.md) criterion 14), and it has not run for real yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.** **The change to the ticket's part of a spec (the base copy in criterion 5, criterion 7, and `approve` keeping a buildable status in criterion 15) approved 29 Sep 2026; not yet built.**
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `spec-to-plan.yml`. When a spec pull request is merged,
