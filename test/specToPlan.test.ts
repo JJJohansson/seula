@@ -4,14 +4,13 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { hasBash, hasJq, pathWith } from "./helpers.ts";
 
 // specs/spec-to-plan-workflow.md, criteria 1-7: the plan workflow up to the workflow's own G2.
 const WORKFLOWS = join(import.meta.dirname, "..", ".github", "workflows");
 const read = (name: string) => readFileSync(join(WORKFLOWS, name), "utf8").replace(/\r\n/g, "\n");
 const WORKFLOW = read("spec-to-plan.yml");
 const CLI = join(import.meta.dirname, "..", "src", "cli.ts");
-const hasBash = process.platform !== "win32" && spawnSync("bash", ["--version"]).status === 0;
-const hasJq = hasBash && spawnSync("jq", ["--version"]).status === 0;
 
 const FIND = "Find the ticket and the spec";
 const APPROVE = "Keep the approved copy, then approve the spec";
@@ -131,7 +130,7 @@ function runFind(files: string[], existing: string[]) {
     encoding: "utf8",
     env: {
       ...process.env,
-      PATH: `${join(d, "bin")}:${process.env.PATH}`,
+      PATH: pathWith(join(d, "bin")),
       SEULA: `node ${CLI}`,
       SEULA_TRACKER: "jira",
       HEAD_REF: "seula/meal-4",
@@ -172,7 +171,7 @@ test("spec-to-plan criterion 3: a failed file list call fails the step, not as 0
   const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script(FIND)], {
     cwd: d,
     encoding: "utf8",
-    env: { ...process.env, PATH: `${join(d, "bin")}:${process.env.PATH}`, SEULA: `node ${CLI}`, SEULA_TRACKER: "jira", HEAD_REF: "seula/meal-4", PR_NUMBER: "142", GITHUB_REPOSITORY: "acme/app", GITHUB_ENV: join(d, "env") },
+    env: { ...process.env, PATH: pathWith(join(d, "bin")), SEULA: `node ${CLI}`, SEULA_TRACKER: "jira", HEAD_REF: "seula/meal-4", PR_NUMBER: "142", GITHUB_REPOSITORY: "acme/app", GITHUB_ENV: join(d, "env") },
   });
   assert.notEqual(r.status, 0);
   assert.doesNotMatch(r.stdout, /changed 0 specs/);

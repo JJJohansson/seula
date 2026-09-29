@@ -4,10 +4,9 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { hasBash, hasJq } from "./helpers.ts";
 
 const WORKFLOW = readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "board-sync.yml"), "utf8").replace(/\r\n/g, "\n");
-const hasBash = process.platform !== "win32" && spawnSync("bash", ["--version"]).status === 0;
-const hasJq = hasBash && spawnSync("jq", ["--version"]).status === 0;
 
 const CHECK = "ticket state";
 const MOVE = "move on merge";
