@@ -100,3 +100,5 @@ criteria sent the ticket back, and the agent rewrote approved text to clear an o
 - The base version has no acceptance criteria section: every criterion counts as changed.
 - A placeholder in an unchanged line that the agent edits: the line is not in the base
   version, so the placeholder is an error.
+- With `--base`, a spec file outside the repo root (for example `../other/x.md`) has no path
+  inside the base folder: the command exits 64 and says that the spec must be inside the repo.
