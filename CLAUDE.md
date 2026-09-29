@@ -58,6 +58,11 @@ CRLF conversion in the tests' git repos.
 - Exit codes are part of the contract: 0 pass or skipped, 1 back, 2 unsure, 3 loop limit,
   64 usage, 70 internal error, 77 a service refused a credential.
 - Tests never call the real Jev API; use `FakeModel` or a recording.
+- Comments: every source file starts with a comment that says what it does and which spec
+  covers it. An exported function, and any function whose name doesn't say enough, gets a
+  one-line `/** … */`. Comment the reason where the code isn't obvious, and cite criteria by
+  number (`trackers criterion 15`). Don't write comments that repeat the code. Workflow steps
+  follow the same rule, with `#` comments.
 - Agent-facing text (skill, agent, prompts, Jev questions) uses short sentences with one
   instruction each, in the style of the `asd-ste100` skill.
 

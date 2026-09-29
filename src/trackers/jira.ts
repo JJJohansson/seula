@@ -24,6 +24,7 @@ export class JiraTracker implements Tracker {
     this.fetchImpl = fetchImpl;
   }
 
+  /** The ticket from the Jira automation rule's `repository_dispatch` body (docs/setup-jira.md, step 5). */
   ticketFromEvent(event: unknown): Ticket {
     const p = (event as { client_payload?: Record<string, unknown> } | null)?.client_payload;
     if (!p || typeof p !== "object") throw new TicketError("The event has no client_payload: is it a repository_dispatch from Jira?");
@@ -38,6 +39,10 @@ export class JiraTracker implements Tracker {
     };
   }
 
+  /**
+   * The newest `max` comments, oldest first (criterion 10). Jira sorts newest first with
+   * `orderBy=-created`, so one request gets the newest ones, and they are reversed here.
+   */
   async comments(key: string, max: number): Promise<CommentPage> {
     this.checkKey(key);
     const res = await this.api(`/rest/api/2/issue/${key}/comment?orderBy=-created&maxResults=${max}`, { method: "GET" });
@@ -54,6 +59,7 @@ export class JiraTracker implements Tracker {
     await failIfNotOk(res, `Jira comment on ${key}`, CREDENTIAL);
   }
 
+  /** The ticket's status name, and the configured state it matches, if any (criterion 14). */
   async state(key: string): Promise<TicketState> {
     this.checkKey(key);
     const res = await this.api(`/rest/api/2/issue/${key}?fields=status`, { method: "GET" });
@@ -64,6 +70,10 @@ export class JiraTracker implements Tracker {
     return { status, state: matchState(this.states, status) };
   }
 
+  /**
+   * Jira changes a status only through a transition of the ticket's workflow. The move takes the
+   * transition whose target has the configured status name, ignoring case (criterion 6).
+   */
   async move(key: string, state: TrackerState): Promise<void> {
     this.checkKey(key);
     const target = stateName(this.states, state);
@@ -89,6 +99,7 @@ export class JiraTracker implements Tracker {
     if (!this.keyPattern.test(key)) throw new TicketError(`Invalid Jira key: "${key}"`);
   }
 
+  /** One call to Jira's REST API: basic auth with the email and the API token, https only, 30 s at most. */
   private api(path: string, init: RequestInit): Promise<Response> {
     const { JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN } = this.env;
     if (!JIRA_BASE_URL || !JIRA_EMAIL || !JIRA_API_TOKEN) {

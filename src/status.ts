@@ -1,3 +1,4 @@
+/** `seula status`: one line per run file, with who acts next (specs/run-files.md criteria 8-9). */
 import { type EventResult, GATES, type RunFile } from "./runs.ts";
 
 const SYMBOL: Record<EventResult, string> = { pass: "✓", back: "↺", review: "?", fail: "✗", skipped: "–" };
@@ -12,6 +13,7 @@ export function gateTrail(run: RunFile): string {
     .join("  ");
 }
 
+/** The next action. When a person is next, the last event says which decision is theirs (criterion 9). */
 export function waitingLabel(run: RunFile): string {
   if (run.waitingOn === "none") return "done";
   if (run.waitingOn === "agent") return "→ agent";
@@ -23,6 +25,7 @@ export function waitingLabel(run: RunFile): string {
   return "→ you: review";
 }
 
+/** The table, under a line that counts the runs waiting on a person. `readRuns` sorts them newest first. */
 export function statusTable(runs: RunFile[]): string {
   if (runs.length === 0) return "No runs yet. Gates write to the runs directory when given --run <id>.";
   const waiting = runs.filter((r) => r.waitingOn === "human").length;

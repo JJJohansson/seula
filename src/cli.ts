@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+ * The `seula` command. It parses the arguments, runs one command, prints text or `--json`, and
+ * turns the result into an exit code (docs/quality-gates.md, "Exit codes"). The gate logic lives
+ * in src/gates/ and the other modules; this file only wires them up.
+ */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative } from "node:path";
 import { parseArgs } from "node:util";
@@ -72,11 +77,14 @@ Exit codes:
   77 a service refused a credential (HTTP 401 or 403): the message names it
 `;
 
+// The exit codes are part of seula's contract: workflows and agents act on them. 64 comes from a
+// UsageError or TicketError, at the bottom of this file.
 const EXIT: Record<Decision | "skipped", number> = { pass: 0, skipped: 0, back: 1, review: 2 };
 const EXIT_BLOCKED = 3;
 const EXIT_ERROR = 70;
 const EXIT_CREDENTIAL = 77;
 
+/** Every option of every command. `parse` lists the same names with their types. */
 interface Options {
   run?: string;
   title?: string;
@@ -109,6 +117,7 @@ interface Options {
   force?: boolean;
 }
 
+/** Runs one command and returns its exit code. Errors are thrown, and mapped to 64, 70 or 77 below. */
 async function main(argv: string[]): Promise<number> {
   let parsed: ReturnType<typeof parse>;
   try {
@@ -129,6 +138,7 @@ async function main(argv: string[]): Promise<number> {
   const out = (text: string, data: unknown) => process.stdout.write(opts.json ? `${JSON.stringify(data, null, 2)}\n` : `${text}\n`);
 
   switch (command) {
+    // G1's format rules only, no model, on one or more specs (g1 criteria 1-9).
     case "check-spec": {
       need(rest[0], "check-spec <spec.md> [more specs…]");
       if (opts.run && rest.length > 1) throw new UsageError("--run takes a single spec.");
@@ -155,6 +165,7 @@ async function main(argv: string[]): Promise<number> {
       return blocked ? EXIT_BLOCKED : EXIT[failed ? "back" : "pass"];
     }
 
+    // G1's Jev half only, without the format rules (g1 criteria 11-17).
     case "jev-spec": {
       const file = need(rest[0], "jev-spec <spec.md>");
       const spec = readSpec(file, config);
@@ -170,6 +181,8 @@ async function main(argv: string[]): Promise<number> {
       return run?.blocked ? EXIT_BLOCKED : EXIT[result.decision];
     }
 
+    // G0 and G2 have their own functions. G1 is here: the format rules, then Jev only when they
+    // pass (g1 criterion 10).
     case "gate": {
       const gate = (rest[0] ?? "").toUpperCase();
       if (gate === "G0") return gateG0(opts, config, out);
@@ -195,12 +208,14 @@ async function main(argv: string[]): Promise<number> {
       return run?.blocked ? EXIT_BLOCKED : EXIT[jev.decision];
     }
 
+    // Every run file as a table: the step, the gate history and who acts next (run-files criteria 8-9).
     case "status": {
       const runs = readRuns(config.runsDir);
       out(statusTable(runs), runs);
       return 0;
     }
 
+    // Adds links or Claude's cost to a run without a gate event (run-files criteria 7 and 10).
     case "update": {
       const id = need(opts.run, "update --run <id> [--claude-usd <n> | --claude-result <file>] [--ticket-url <url>] [--pr-url <url>]");
       const claudeUsd = opts["claude-usd"] === undefined ? undefined : Number(opts["claude-usd"]);
@@ -217,6 +232,8 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
 
+    // Recommends Jev cut-offs from labeled examples (specs/calibration.md). It needs answers from
+    // Jev, live or recorded, so without either it is a usage error (criterion 7).
     case "calibrate": {
       const file = need(rest[0], "calibrate <labels.json>");
       const labels = JSON.parse(readFileSync(file, "utf8")) as LabelsFile;
@@ -230,6 +247,7 @@ async function main(argv: string[]): Promise<number> {
     case "tracker":
       return trackerCommand(rest[0], opts, config, out);
 
+    // The plan step records a merged spec's approval in its status line (spec-to-plan criterion 15).
     case "approve": {
       const usage = "approve <spec.md> --pr <number>";
       const file = need(rest[0], usage);
@@ -244,6 +262,8 @@ async function main(argv: string[]): Promise<number> {
       process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
       return 0;
 
+    // The spec-writer and planner prompts for a workflow run (agent-plugin criteria 7-14). They
+    // name the ticket and spec files and never contain their text.
     case "prompt": {
       if (rest[0] === "planner") {
         const usage = "prompt planner --run <id> --spec <file> --approved <file>";
@@ -259,6 +279,7 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
 
+    // Writes the config and the caller workflows into the current repo (specs/adoption.md).
     case "init": {
       const tracker = need(opts.tracker, "init --tracker <jira|github> --seula-ref <full SHA|tag|branch>");
       if (tracker !== "jira" && tracker !== "github") throw new UsageError(`Unknown tracker "${tracker}". Use jira or github.`);
@@ -286,6 +307,10 @@ function ticketKey(opts: Options, tracker: Tracker, usage: string): string {
   return need(opts.key, usage);
 }
 
+/**
+ * `seula tracker …`: the commands the workflows use to read and change tickets (specs/trackers.md).
+ * The gates never call a tracker; only these commands do.
+ */
 async function trackerCommand(
   sub: string | undefined,
   opts: Options,
@@ -364,6 +389,7 @@ async function trackerCommand(
   }
 }
 
+/** G0 (specs/g0-ticket-gate.md): the word count, then one Jev request with the ticket questions. */
 async function gateG0(opts: Options, config: SeulaConfig, out: (text: string, data: unknown) => void): Promise<number> {
   const ticketFile = need(opts.ticket, "gate g0 --ticket <file>");
   const ticket = readFileSync(ticketFile, "utf8");
@@ -449,6 +475,7 @@ function readClaudeResult(file: string): ClaudeRun | undefined {
   }
 }
 
+/** The value as a URL, when it is one and uses https. Run files store only https links (run-files criterion 7). */
 function httpsUrl(value: string): string {
   let url: URL;
   try {
@@ -465,6 +492,7 @@ function need(value: string | undefined, usage: string): string {
   return value;
 }
 
+/** Reads `.env` in the current folder into the environment, when there is one (for TYPESAFE_API_KEY and the tracker variables). */
 function loadDotEnv(): void {
   try {
     process.loadEnvFile();
@@ -518,6 +546,11 @@ function readTicket(file: string | undefined): string | undefined {
   return file ? readFileSync(file, "utf8") : undefined;
 }
 
+/**
+ * The Jev model for a gate: recorded answers when `--recorded` is given, else the live API when
+ * TYPESAFE_API_KEY is set, wrapped to save its answers when `--record` is given. Without either,
+ * nothing, and the gate reports its Jev half as skipped.
+ */
 function pickModel(opts: Options, config: SeulaConfig): DecisionModel | undefined {
   if (opts.recorded) return new RecordedModel(opts.recorded);
   const key = process.env.TYPESAFE_API_KEY;
@@ -526,6 +559,7 @@ function pickModel(opts: Options, config: SeulaConfig): DecisionModel | undefine
   return opts.record ? new RecordingModel(live, opts.record) : live;
 }
 
+/** Adds a gate event to the run file when `--run` is given (run-files criterion 1), with the loop limit. */
 function record(
   opts: Options,
   config: SeulaConfig,
@@ -536,6 +570,7 @@ function record(
   return appendEvent(config.runsDir, opts.run, event, { ...extra, maxBacks: config.maxBacks });
 }
 
+/** `record` for a gate on a spec: the run file also gets the spec's title and its path from the repo root. */
 function recordSpec(
   opts: Options,
   config: SeulaConfig,
@@ -556,6 +591,8 @@ function recordSpec(
 }
 
 // ── formatting ──────────────────────────────────────────────────────────────
+// The text output of the gates. `--json` prints the result objects instead. The feedback lines
+// are what the writing agent reads and what the run file stores.
 
 const MARK = { error: "✗", warn: "!", info: "i" } as const;
 const DECISION_MARK: Record<Decision, string> = { pass: "✓", review: "?", back: "↺" };
@@ -622,6 +659,8 @@ function blockedText(run: RunFile | undefined): string {
   return run?.blocked ? `\nSTOP: ${run.blocked} A person must step in.` : "";
 }
 
+// A usage error or an unusable ticket exits 64, a refused credential 77, anything else 70:
+// nothing was decided.
 main(process.argv.slice(2)).then(
   (code) => {
     process.exitCode = code;

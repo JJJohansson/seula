@@ -17,9 +17,11 @@ jobs:
   check-spec:
     runs-on: ubuntu-latest
     steps:
+      # The full history, so the diff against the pull request's base commit works.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+      # seula itself, beside the repo. It keeps no token: nothing here pushes.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           repository: JJJohansson/seula
@@ -29,6 +31,8 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
+      # Only added or changed specs (a deleted spec has nothing to check), in the configured spec
+      # directory. check-spec itself skips the files in the config's ignore list.
       - name: Check changed specs
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
