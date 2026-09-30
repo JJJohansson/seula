@@ -20,6 +20,7 @@ import { type DecisionModel, JevHttpModel, RecordedModel, RecordingModel } from 
 import type { Decision } from "./routing.ts";
 import { type ClaudeRun, type EventResult, type GateId, type RunFile, appendEvent, claudeRunFromOutput, readRun, readRuns, updateRun } from "./runs.ts";
 import { type ParsedSpec, parseSpec } from "./spec.ts";
+import { readBaseVersion } from "./specDiff.ts";
 import { init, initReport } from "./init.ts";
 import { renderPlannerPrompt, renderSpecWriterPrompt } from "./prompts.ts";
 import { statusTable } from "./status.ts";
@@ -57,6 +58,8 @@ Options:
   --run <id>          Record the result in the feature's run file (e.g. --run WEB-42)
   --title <text>      Feature title for the run file (G0; G1 reads it from the spec)
   --ticket <file>     Ticket text. Required for G0; optional context for G1
+  --base <dir>        G1: check only what changed since the spec's base version in <dir>
+                      (the spec at the same path from the repo root; none there: a new spec)
   --recorded <file>   Use recorded Jev answers instead of calling the API
   --record <file>     Call the API and save the answers for later --recorded runs
   --config <file>     Config file (default: seula.config.json)
@@ -109,6 +112,7 @@ interface Options {
   "seula-cmd"?: string;
   "previous-spec"?: string;
   approved?: string;
+  base?: string;
   pr?: string;
   spec?: string;
   "spec-dir"?: string;
@@ -152,7 +156,7 @@ async function main(argv: string[]): Promise<number> {
       let blocked = false;
       const results = files.map((file) => {
         const spec = readSpec(file, config);
-        const result = checkSpec(spec, config);
+        const result = checkSpec(spec, config, { base: baseVersion(opts, file) });
         const run = recordSpec(opts, config, "G1", spec, file, result.ok ? "pass" : "back", formatFindingsSummary(result), findingLines(result));
         blocked ||= Boolean(run?.blocked);
         return { file, result };
@@ -169,13 +173,14 @@ async function main(argv: string[]): Promise<number> {
     case "jev-spec": {
       const file = need(rest[0], "jev-spec <spec.md>");
       const spec = readSpec(file, config);
+      const base = baseVersion(opts, file);
       const model = pickModel(opts, config);
       if (!model) {
         out(skippedText("G1"), { decision: "skipped" });
         recordSpec(opts, config, "G1", spec, file, "skipped", "Jev skipped: no TYPESAFE_API_KEY");
         return EXIT.skipped;
       }
-      const result = await jevSpec(spec, config, model, { ticket: readTicket(opts.ticket) });
+      const result = await jevSpec(spec, config, model, { ticket: readTicket(opts.ticket), base: base === undefined ? undefined : parseSpec(base, config) });
       const run = recordSpec(opts, config, "G1", spec, file, result.decision, jevSummary(result), feedbackLines(result), result.costUsd);
       out(formatJev(file, result) + blockedText(run), { ...result, blocked: run?.blocked });
       return run?.blocked ? EXIT_BLOCKED : EXIT[result.decision];
@@ -190,7 +195,8 @@ async function main(argv: string[]): Promise<number> {
       if (gate !== "G1") throw new UsageError(`Unknown gate "${rest[0] ?? ""}". Available: g0, g1, g2.`);
       const file = need(rest[1], "gate g1 <spec.md>");
       const spec = readSpec(file, config);
-      const check = checkSpec(spec, config);
+      const base = baseVersion(opts, file);
+      const check = checkSpec(spec, config, { base });
       if (!check.ok) {
         const run = recordSpec(opts, config, "G1", spec, file, "back", formatFindingsSummary(check), findingLines(check));
         out(formatCheck(file, check) + blockedText(run), { decision: "back", check, blocked: run?.blocked });
@@ -202,7 +208,7 @@ async function main(argv: string[]): Promise<number> {
         out(`${formatCheck(file, check)}\n\n${skippedText("G1")}`, { decision: "skipped", check });
         return EXIT.skipped;
       }
-      const jev = await jevSpec(spec, config, model, { ticket: readTicket(opts.ticket) });
+      const jev = await jevSpec(spec, config, model, { ticket: readTicket(opts.ticket), base: base === undefined ? undefined : parseSpec(base, config) });
       const run = recordSpec(opts, config, "G1", spec, file, jev.decision, jevSummary(jev), feedbackLines(jev), jev.costUsd);
       out(`${formatCheck(file, check)}\n\n${formatJev(file, jev)}${blockedText(run)}`, { decision: jev.decision, check, jev, blocked: run?.blocked });
       return run?.blocked ? EXIT_BLOCKED : EXIT[jev.decision];
@@ -454,6 +460,7 @@ function parse(argv: string[]) {
       "seula-cmd": { type: "string" },
       "previous-spec": { type: "string" },
       approved: { type: "string" },
+      base: { type: "string" },
       pr: { type: "string" },
       spec: { type: "string" },
       "spec-dir": { type: "string" },
@@ -542,6 +549,11 @@ function readSpec(file: string, config: SeulaConfig): ParsedSpec {
   return parseSpec(readFileSync(file, "utf8"), config);
 }
 
+/** The spec's base version with `--base`, or nothing: no `--base`, or a new spec (g1 criterion 18). */
+function baseVersion(opts: Options, file: string): string | undefined {
+  return opts.base === undefined ? undefined : readBaseVersion(opts.base, file);
+}
+
 function readTicket(file: string | undefined): string | undefined {
   return file ? readFileSync(file, "utf8") : undefined;
 }
@@ -621,6 +633,8 @@ function formatJev(file: string, r: JevSpecResult): string {
     const qs = c.questions.map((q) => `${q.question} ${q.goodness.toFixed(2)}${DECISION_MARK[q.decision]}`).join("  ");
     lines.push(`  criterion ${c.number.padEnd(3)} ${c.decision.padEnd(6)} ${qs}`);
   }
+  // g1 criterion 19: say why the list is short, so a reviewer doesn't think criteria are missing.
+  if (r.unchanged > 0) lines.push(`  ${r.unchanged} unchanged criteria not checked (--base)`);
   lines.push(`Result: ${r.decision.toUpperCase()} — ${jevSummary(r)}`);
   const fb = feedbackLines(r);
   if (fb.length) lines.push("Feedback:", ...fb.map((l) => `  ${l}`));
@@ -630,6 +644,7 @@ function formatJev(file: string, r: JevSpecResult): string {
 function jevSummary(r: JevSpecResult): string {
   const back = r.criteria.filter((c) => c.decision === "back").length;
   const review = r.criteria.filter((c) => c.decision === "review").length;
+  if (r.criteria.length === 0 && r.decision === "pass") return "no criteria changed";
   if (!back && !review) return `all ${r.criteria.length} criteria pass`;
   return [back && `${back} to rework`, review && `${review} unsure`].filter(Boolean).join(", ");
 }
