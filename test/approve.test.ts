@@ -5,9 +5,10 @@ import { UsageError } from "../src/errors.ts";
 import { config, fixture } from "./helpers.ts";
 
 // spec-to-plan-workflow criterion 15: `seula approve` marks a merged spec Approved, and nothing else.
+// The status blocks over several lines, and buildable statuses, are in g2Base.test.ts.
 const SPEC = fixture("plan-spec.md").replace(/\r\n/g, "\n").replace(/^> \*\*Status:\*\*.*$/m, "> **Status:** Idea");
 const TODAY = new Date(Date.UTC(2026, 8, 28));
-const APPROVED = "> **Status:** Approved (28 Sep 2026, merged in #142)";
+const APPROVED = "> **Status:** Approved (28 Sep 2026, merged in #142).";
 
 test("spec-to-plan criterion 15: the status line becomes Approved with the date and the PR, and nothing else changes", () => {
   const out = approveSpec(SPEC, config(), 142, TODAY);
@@ -23,11 +24,10 @@ test("spec-to-plan criterion 15: CRLF line endings stay CRLF", () => {
   assert.equal(out.replace(APPROVED, "> **Status:** Idea"), SPEC.replace(/\n/g, "\r\n"));
 });
 
-test("spec-to-plan criterion 15: a long status line is replaced as a whole", () => {
-  const long = SPEC.replace("> **Status:** Idea", "> **Status:** Idea. Drafted 28 Sep 2026 with Janne, not approved. **Note:** more text.");
+test("spec-to-plan criterion 15: only the status marker of a long status line is replaced; its other text stays", () => {
+  const long = SPEC.replace("> **Status:** Idea", "> **Status:** Idea. Drafted 28 Sep 2026 from ticket X. **Note:** more text.");
   const out = approveSpec(long, config(), 7, TODAY);
-  assert.match(out, /^> \*\*Status:\*\* Approved \(28 Sep 2026, merged in #7\)$/m);
-  assert.doesNotMatch(out, /Drafted|more text/);
+  assert.match(out, /^> \*\*Status:\*\* Approved \(28 Sep 2026, merged in #7\)\. Drafted 28 Sep 2026 from ticket X\. \*\*Note:\*\* more text\.$/m);
 });
 
 test("spec-to-plan criterion 15: no status line, a bad PR number, or no Approved status is a usage error", () => {
