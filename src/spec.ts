@@ -142,6 +142,27 @@ function parseCriteria(section: Section): Criterion[] {
   return out;
 }
 
+const PLAN_ITEM = /^(\d+)[.)]\s+(.*)$/;
+
+/** The numbered items of a `## PLAN` section's body, each with its wrapped lines joined into one line (specs/g2-plan-gate.md). */
+export function planItems(body: string, firstLine: number): { number: string; text: string; line: number }[] {
+  const lines = body.split("\n");
+  const items: { number: string; text: string; line: number }[] = [];
+  let current: { number: string; text: string; line: number } | undefined;
+  for (const [i, raw] of lines.entries()) {
+    const m = PLAN_ITEM.exec(raw);
+    if (m) {
+      current = { number: m[1] ?? "", text: m[2] ?? "", line: firstLine + 1 + i };
+      items.push(current);
+    } else if (current && raw.trim() !== "" && !raw.startsWith("#") && (/^\s/.test(raw) || lines[i - 1]?.trim() !== "")) {
+      current.text += ` ${raw.trim()}`;
+    } else {
+      current = undefined;
+    }
+  }
+  return items;
+}
+
 /** Replace the contents of ``` fenced blocks with empty lines, keeping line numbers stable. */
 function blankFencedCode(lines: string[]): string[] {
   let inFence = false;

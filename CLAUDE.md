@@ -33,7 +33,10 @@ CRLF conversion in the tests' git repos.
 - `src/cli.ts`: argument parsing, exit codes, output formatting. No gate logic.
 - `src/config.ts`: `seula.config.json`, its defaults and its types. `src/errors.ts`: the
   errors that give exit 64 and 77.
-- `src/spec.ts`: markdown spec parser. `src/gates/checkSpec.ts`: G1 format rules.
+- `src/spec.ts`: markdown spec parser, including the plan's tasks. `src/gates/checkSpec.ts`: G1
+  format rules.
+- `src/specDiff.ts`: what a ticket changed in a spec compared with its base version (`--base`):
+  the changed criteria, lines and plan tasks.
 - `src/gates/jevSpec.ts` (G1) and `src/gates/jevTicket.ts` (G0): build Jev requests, route answers.
 - `src/gates/checkPlan.ts` and `src/gates/jevPlan.ts`: G2's plan rules and its Jev flags.
 - `src/routing.ts`: pass / back / unsure from a probability and cut-offs.
