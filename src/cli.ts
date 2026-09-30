@@ -58,7 +58,7 @@ Options:
   --run <id>          Record the result in the feature's run file (e.g. --run WEB-42)
   --title <text>      Feature title for the run file (G0; G1 reads it from the spec)
   --ticket <file>     Ticket text. Required for G0; optional context for G1
-  --base <dir>        G1: check only what changed since the spec's base version in <dir>
+  --base <dir>        G1, G2: check only what changed since the spec's base version in <dir>
                       (the spec at the same path from the repo root; none there: a new spec)
   --recorded <file>   Use recorded Jev answers instead of calling the API
   --record <file>     Call the API and save the answers for later --recorded runs
@@ -508,13 +508,13 @@ function loadDotEnv(): void {
   }
 }
 
-/** G2 (specs/g2-plan-gate.md): the plan's script rules, then Jev's flag questions when they pass. */
+/** G2 (specs/g2-plan-gate.md): the plan's script rules, then Jev's flag questions when they pass. With `--base`, both look only at the change. */
 async function gateG2(file: string | undefined, opts: Options, config: SeulaConfig, out: (text: string, data: unknown) => void): Promise<number> {
-  const path = need(file, "gate g2 <spec.md> [--approved <file>]");
+  const path = need(file, "gate g2 <spec.md> [--approved <file>] [--base <dir>]");
   const markdown = readFileSync(path, "utf8");
   const approved = opts.approved === undefined ? undefined : readFileSync(opts.approved, "utf8");
   const spec = parseSpec(markdown, config);
-  const check = checkPlan(markdown, config, approved);
+  const check = checkPlan(markdown, config, approved, baseVersion(opts, path));
   const lines = [`G2 · plan · ${path}`];
   if (!check.ok) {
     const feedback = check.findings.map((f) => `plan · ${f.rule}: ${f.message}`);
@@ -526,14 +526,14 @@ async function gateG2(file: string | undefined, opts: Options, config: SeulaConf
     });
     return run?.blocked ? EXIT_BLOCKED : EXIT.back;
   }
-  lines.push(`Plan rules: pass (${check.tasks.length} tasks).`);
+  lines.push(`Plan rules: pass (${check.tasks.length} tasks${check.change ? `, ${check.change.tasks.length} new or changed` : ""}).`);
   const model = pickModel(opts, config);
   if (!model) {
     recordSpec(opts, config, "G2", spec, path, "skipped", "Jev skipped: no TYPESAFE_API_KEY");
     out([...lines, "Jev flags: skipped (no TYPESAFE_API_KEY).", "Result: PASS"].join("\n"), { decision: "skipped", tasks: check.tasks.length });
     return EXIT.skipped;
   }
-  const result = await jevPlan(spec, config, model);
+  const result = await jevPlan(spec, config, model, check.change);
   const feedback = planFeedbackLines(result);
   const run = recordSpec(opts, config, "G2", spec, path, result.decision, `${result.flags.length} flags`, feedback, result.costUsd);
   const verdict = result.decision === "review" ? "UNSURE: a person reviews the flags" : "PASS";

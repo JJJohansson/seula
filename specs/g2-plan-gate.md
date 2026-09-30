@@ -1,6 +1,6 @@
 # FEATURE: G2 plan gate
 
-> **Status:** Approved (28 Sep 2026). Built 28 Sep 2026 in two units: the script rules, then the Jev flags and the run file. **The change to the ticket's part of a spec (`--base`, the status block, criteria 2, 3 and 5) approved 29 Sep 2026; not yet built.**
+> **Status:** Approved (28 Sep 2026). Built 28 Sep 2026 in two units: the script rules, then the Jev flags and the run file. **The change to the ticket's part of a spec (`--base`, the status block, criteria 2, 3 and 5) approved 29 Sep 2026; not yet built. With `--base`: at least one changed task (criterion 1), paths only in changed tasks (criterion 4) and Jev flags only on the change (criterion 6) approved 30 Sep 2026.**
 
 ## OVERVIEW
 A command, `seula gate g2 <spec>`, that checks the plan in an approved spec's `## PLAN` section
@@ -46,7 +46,8 @@ change. The rest of the spec was planned and built before.
 
 ## ACCEPTANCE CRITERIA
 1. `seula gate g2 <spec>` reports an error when the spec has no `## PLAN` section, or when the
-   section has no numbered task.
+   section has no numbered task. With `--base`, it also reports an error when no task is
+   changed, so the plan pull request always has something to review.
 2. It reports an error for each changed task that has no `Criteria:` with a criterion number,
    no `Test:` with text, or no `Files:` with a path. A task that is unchanged from the base
    version is not checked.
@@ -54,11 +55,14 @@ change. The rest of the spec was planned and built before.
    and for each number in a changed task's `Criteria:` that is not an acceptance criterion of
    the spec. Without `--base`, and for a new spec, every criterion and every task is changed.
    A changed task can also name a criterion that did not change.
-4. It reports an error for each path in `Files:` that is absolute or contains `..`.
+4. It reports an error for each path in a changed task's `Files:` that is absolute or
+   contains `..`.
 5. With `--approved <file>`, it reports an error when the spec differs from that file outside
    the `## PLAN` section and the status block. The error names the first section that differs.
 6. It calls Jev only when criteria 1–5 find no error. One request holds the spec's title,
    overview and acceptance criteria and the plan, with the flag questions from `g2.questions`.
+   With `--base`, the request holds only the changed criteria and the changed tasks, so an old
+   task doesn't flag every later plan for the spec.
 7. A flag question passes when the probability of "yes" is at most 1 minus its `passAt`.
    Otherwise it is a flag. A flag never sends the plan back.
 8. The gate result is back (exit 1) when criteria 1–5 find an error, else unsure (exit 2) when
@@ -87,7 +91,8 @@ change. The rest of the spec was planned and built before.
 - A spec with no acceptance criteria: criterion 3 has nothing to cover, and G1 has already
   reported the missing criteria.
 - A merged change with no changed criterion, for example only a new edge case: criterion 3 has
-  nothing to cover, and the plan still needs at least one task (criterion 1).
+  nothing to cover, and the plan still needs at least one changed task (criterion 1), for
+  example a test for the new edge case.
 - A spec that already has a `## PLAN` from an earlier change, also one in free text: its
   unchanged tasks are not checked (criteria 2 and 3), and they don't cover a changed criterion,
   because they planned the earlier version. The planner adds tasks for the new change.

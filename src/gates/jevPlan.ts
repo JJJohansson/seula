@@ -5,6 +5,7 @@
 import type { SeulaConfig } from "../config.ts";
 import type { DecisionModel, NoulRequest } from "../jev/model.ts";
 import { type ParsedSpec, findSection } from "../spec.ts";
+import type { PlanChange } from "./checkPlan.ts";
 
 const DEFAULT_PASS_AT = 0.75;
 
@@ -23,7 +24,11 @@ export interface JevPlanResult {
   costUsd: number;
 }
 
-export function planRequest(spec: ParsedSpec, config: SeulaConfig): NoulRequest {
+/**
+ * The one request for a plan (criterion 6). With `change`, it holds only the changed criteria and
+ * tasks, so an old task (for example one that touched sign-in) doesn't flag every later plan.
+ */
+export function planRequest(spec: ParsedSpec, config: SeulaConfig, change?: PlanChange): NoulRequest {
   const questions = Object.fromEntries(
     Object.entries(config.g2.questions).map(([id, q]) => [
       id,
@@ -34,15 +39,15 @@ export function planRequest(spec: ParsedSpec, config: SeulaConfig): NoulRequest 
     state: {
       feature: spec.title ?? "(untitled)",
       overview: findSection(spec, "OVERVIEW")?.body.trim() ?? "",
-      criteria: spec.criteria.map((c) => `${c.number}. ${c.text}`).join("\n"),
-      plan: findSection(spec, "PLAN")?.body.trim() ?? "",
+      criteria: (change?.criteria ?? spec.criteria.map((c) => `${c.number}. ${c.text}`)).join("\n"),
+      plan: change ? change.tasks.map((t) => `${t.number}. ${t.text}`).join("\n") : (findSection(spec, "PLAN")?.body.trim() ?? ""),
     },
     questions,
   };
 }
 
-export async function jevPlan(spec: ParsedSpec, config: SeulaConfig, model: DecisionModel): Promise<JevPlanResult> {
-  const res = await model.evaluate(planRequest(spec, config));
+export async function jevPlan(spec: ParsedSpec, config: SeulaConfig, model: DecisionModel, change?: PlanChange): Promise<JevPlanResult> {
+  const res = await model.evaluate(planRequest(spec, config, change));
   const flags: PlanFlag[] = [];
   for (const [id, q] of Object.entries(config.g2.questions)) {
     const p = res.answers[id] ?? 0;

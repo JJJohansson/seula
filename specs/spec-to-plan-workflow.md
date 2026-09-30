@@ -1,6 +1,6 @@
 # FEATURE: Reusable spec-to-plan workflow
 
-> **Status:** Approved (28 Sep 2026). Built: criteria 1–7 and 15 on 28 Sep 2026, criteria 8–14 on 29 Sep 2026. Nothing calls the workflow until its caller exists ([`adoption.md`](adoption.md) criterion 14), and it has not run for real yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.** **The change to the ticket's part of a spec (the base copy in criterion 5, criterion 7, and `approve` keeping a buildable status in criterion 15) approved 29 Sep 2026; not yet built.**
+> **Status:** Approved (28 Sep 2026). Built: criteria 1–7 and 15 on 28 Sep 2026, criteria 8–14 on 29 Sep 2026. Nothing calls the workflow until its caller exists ([`adoption.md`](adoption.md) criterion 14), and it has not run for real yet. **The changes to criteria 3–5 and criterion 15 (finding the spec, `seula approve`, the approved copy) approved 28 Sep 2026.** **The change to the ticket's part of a spec (the base copy in criterion 5, criterion 7, and `approve` keeping a buildable status in criterion 15) approved 29 Sep 2026; not yet built. Dropping a `(…)` after an old status in criterion 15 approved 30 Sep 2026.**
 
 ## OVERVIEW
 A reusable GitHub Actions workflow, `spec-to-plan.yml`. When a spec pull request is merged,
@@ -88,9 +88,9 @@ building stay with a person for now.
     spec branch.
 15. `seula approve <spec> --pr <number>` records the approval in the spec's status block, with
     today's date, and changes nothing else in the file:
-    - When the status is not buildable, it replaces the status marker with
-      `**Status:** Approved (<date>, merged in #<number>).` and keeps the rest of the status
-      block.
+    - When the status is not buildable, it replaces the status marker, and a `(…)` directly
+      after it, with `**Status:** Approved (<date>, merged in #<number>).` and keeps the rest of
+      the status block. The `(…)`, such as a date, described the old status.
     - When the status is buildable, it keeps the status and adds the line
       `> Change approved (<date>, merged in #<number>).` at the end of the status block's first
       paragraph.
