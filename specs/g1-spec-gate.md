@@ -1,6 +1,6 @@
 # FEATURE: G1 spec gate
 
-> **Status: Active.** Written after the first implementation (26 Sep 2026); criteria confirmed 29 Sep 2026. Credential errors: criterion 17 approved and built 27 Sep 2026. **The change to the ticket's part of a spec (`--base`, the data schema, criteria 18–20) approved 29 Sep 2026; not yet built.**
+> **Status: Active.** Written after the first implementation (26 Sep 2026); criteria confirmed 29 Sep 2026. Credential errors: criterion 17 approved and built 27 Sep 2026. **The change to the ticket's part of a spec (`--base`, the data schema, criteria 18–20) approved 29 Sep 2026; not yet built. `jev-spec` in criterion 18, the "not checked" count in criterion 19, and the edge cases for a missing folder and a moved line approved 30 Sep 2026.**
 
 ## OVERVIEW
 A command that checks one feature spec before it moves on to planning: first deterministic
@@ -70,10 +70,12 @@ criteria sent the ticket back, and the agent rewrote approved text to clear an o
 17. When Jev answers HTTP 401 or 403, the command exits 77. Its message names
     `TYPESAFE_API_KEY` and says that the key may be expired or revoked. It never prints the
     key's value.
-18. `seula check-spec` and `seula gate g1` accept `--base <dir>` (see DATA SCHEMA). For a new
-    spec, every rule applies as without `--base`.
+18. `seula check-spec`, `seula jev-spec` and `seula gate g1` accept `--base <dir>` (see DATA
+    SCHEMA). For a new spec, every rule applies as without `--base`.
 19. With `--base`, Jev receives a request only for each changed criterion. When no criterion
     changed, Jev is not called, the report says "no criteria changed", and the Jev half passes.
+    When some criteria are unchanged, the report says how many were not checked, for example
+    "13 unchanged criteria not checked (--base)".
 20. With `--base`, the short-criterion rule of criterion 4 applies only to changed criteria,
     and the placeholder rule of criterion 6 applies only to lines that are not in the base
     version, with whitespace ignored. A placeholder in a line that is in the base version is a
@@ -102,3 +104,7 @@ criteria sent the ticket back, and the agent rewrote approved text to clear an o
   version, so the placeholder is an error.
 - With `--base`, a spec file outside the repo root (for example `../other/x.md`) has no path
   inside the base folder: the command exits 64 and says that the spec must be inside the repo.
+- The `--base` folder doesn't exist, for example because of a typo: the command exits 64 and
+  names the folder. An empty folder is allowed: every spec in it is then new.
+- An unchanged line that the agent moves to another section, with the same words: it is still
+  in the base version, so a placeholder in it is still a warning.

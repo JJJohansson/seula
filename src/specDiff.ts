@@ -43,7 +43,8 @@ function planTexts(markdown: string, config: SeulaConfig): { number: string; tex
 
 /**
  * The spec's base version from the base folder, at the spec's path from the repo root (`cwd`), or
- * nothing for a new spec. A spec outside the repo has no path in the base folder (g1 edge cases).
+ * nothing for a new spec. A spec outside the repo has no path in the base folder, and a folder that
+ * doesn't exist is most likely a typo, so both are usage errors (g1 edge cases).
  */
 export function readBaseVersion(baseDir: string, specFile: string, cwd: string = process.cwd()): string | undefined {
   const root = resolve(cwd);
@@ -51,6 +52,7 @@ export function readBaseVersion(baseDir: string, specFile: string, cwd: string =
   if (path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)) {
     throw new UsageError(`With --base, the spec must be inside the repo: ${specFile}`);
   }
+  if (!existsSync(resolve(root, baseDir))) throw new UsageError(`The --base folder ${baseDir} doesn't exist.`);
   const file = join(resolve(root, baseDir), path);
   return existsSync(file) ? readFileSync(file, "utf8") : undefined;
 }

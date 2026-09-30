@@ -1,9 +1,11 @@
 /**
  * G1, first half: deterministic format rules for a spec. No model involved.
- * A spec that fails here never reaches Jev.
+ * A spec that fails here never reaches Jev. With a base version, the line rules look only at
+ * the ticket's change (specs/g1-spec-gate.md criterion 20).
  */
 import type { SeulaConfig } from "../config.ts";
-import { type ParsedSpec, findSection, normalizeHeading } from "../spec.ts";
+import { type ParsedSpec, findSection, normalizeHeading, parseSpec } from "../spec.ts";
+import { changedCriteria, unchangedLine } from "../specDiff.ts";
 
 export type Severity = "error" | "warn" | "info";
 
@@ -19,9 +21,12 @@ export interface CheckSpecResult {
   findings: Finding[];
 }
 
-export function checkSpec(spec: ParsedSpec, config: SeulaConfig): CheckSpecResult {
+/** `base`: the spec's base version (`--base`). Without it, the spec is new and every rule covers all of it. */
+export function checkSpec(spec: ParsedSpec, config: SeulaConfig, opts: { base?: string } = {}): CheckSpecResult {
   const findings: Finding[] = [];
   const add = (f: Finding) => findings.push(f);
+  const changed = changedCriteria(spec, opts.base === undefined ? undefined : parseSpec(opts.base, config));
+  const inBase = unchangedLine(opts.base);
 
   if (!spec.title) add({ rule: "title", severity: "error", message: "No '# ' title line." });
 
@@ -73,7 +78,7 @@ export function checkSpec(spec: ParsedSpec, config: SeulaConfig): CheckSpecResul
       });
     }
     seen.set(c.number, c.line);
-    if (c.text.split(/\s+/).filter(Boolean).length < 3) {
+    if (changed.has(c.number) && c.text.split(/\s+/).filter(Boolean).length < 3) {
       add({ rule: "criterion-text", severity: "error", message: `Criterion ${c.number} is too short to test.`, line: c.line });
     }
   }
@@ -101,16 +106,19 @@ export function checkSpec(spec: ParsedSpec, config: SeulaConfig): CheckSpecResul
     });
   }
 
-  // Placeholders and template leftovers, outside code blocks and inline code.
+  // Placeholders and template leftovers, outside code blocks and inline code. One in a line that
+  // the base version already has is the earlier author's, not the ticket's: a warning only.
   const patterns = config.placeholderPatterns.map((p) => new RegExp(p, "i"));
   const templateSlot = /<[^<>\n]*\s[^<>\n]*>/; // "<1–3 sentences: …>"; not "<Button>"
   spec.proseLines.forEach((raw, i) => {
     const line = raw.replace(/`[^`]*`/g, "");
-    const hit = patterns.find((re) => re.test(line));
-    if (hit) {
-      add({ rule: "placeholder", severity: "error", message: `Unfinished text: "${line.trim()}"`, line: i + 1 });
+    const old = inBase(raw);
+    const severity: Severity = old ? "warn" : "error";
+    const already = old ? ", already in the base version" : "";
+    if (patterns.some((re) => re.test(line))) {
+      add({ rule: "placeholder", severity, message: `Unfinished text${already}: "${line.trim()}"`, line: i + 1 });
     } else if (templateSlot.test(line) && !/^\s*<!--/.test(line)) {
-      add({ rule: "placeholder", severity: "error", message: `Template slot not filled in: "${line.trim()}"`, line: i + 1 });
+      add({ rule: "placeholder", severity, message: `Template slot not filled in${already}: "${line.trim()}"`, line: i + 1 });
     }
   });
 
